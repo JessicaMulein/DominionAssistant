@@ -1,0 +1,31 @@
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 6;
+export const NO_PLAYER = -1;
+export const NOT_PRESENT = -1;
+// Base Set
+export const ESTATE_COST = 2;
+export const ESTATE_VP = 1;
+export const DUCHY_COST = 5;
+export const DUCHY_VP = 3;
+export const PROVINCE_COST = 8;
+export const PROVINCE_VP = 6;
+export const CURSE_COST = 0;
+export const CURSE_VP = -1;
+export const COPPER_COST = 0;
+export const COPPER_COUNT = 60;
+export const COPPER_VALUE = 1;
+export const SILVER_COST = 3;
+export const SILVER_COUNT = 40;
+export const SILVER_VALUE = 2;
+export const GOLD_COST = 6;
+export const GOLD_COUNT = 30;
+export const GOLD_VALUE = 3;
+export const HAND_STARTING_ESTATES = 3;
+export const HAND_STARTING_COPPERS = 7;
+// Prosperity Kingdom
+export const PLATINUM_TOTAL_COUNT = 12;
+export const PLATINUM_COST = 9;
+export const PLATINUM_VALUE = 5;
+export const COLONY_TOTAL_COUNT = 12;
+export const COLONY_COST = 11;
+export const COLONY_VP = 10;
