@@ -15,7 +15,7 @@ export const EmptyGameState: IGame = {
   players: [],
   supply: calculateInitialSupply(MIN_PLAYERS, false, false),
   options: {
-    curses: false,
+    curses: true,
     expansions: { prosperity: false, renaissance: false, risingSun: false },
     mats: {
       coffersVillagers: false,
