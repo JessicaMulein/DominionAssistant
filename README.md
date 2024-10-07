@@ -19,8 +19,7 @@ Under _17 U.S.C. § 107_, fair use allows limited use of copyrighted material wi
 
 **Case References**:
 
-- In _Campbell v. Acuff-Rose Music, Inc._, 510 U.S. 569 (1994), the U.S. Supreme Court emphasized that transformati
-  ve uses of copyrighted material could qualify as fair use.
+- In _Campbell v. Acuff-Rose Music, Inc._, 510 U.S. 569 (1994), the U.S. Supreme Court emphasized that transformative uses of copyrighted material could qualify as fair use.
 - In _Lentz v. Morrow_, 104 Cal.App.3d 392 (1980), the court upheld that using copyrighted material in a manner that requires the original for use is less likely to infringe on the copyright holder’s rights.
 
 Our application, as a fan-built tool that does not replicate the game, could be argued as transformative.
