@@ -6,4 +6,5 @@ export interface ILogEntry {
   playerIndex: number;
   playerName?: string;
   count?: number;
+  correction?: boolean;
 }

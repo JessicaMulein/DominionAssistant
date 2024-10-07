@@ -8,7 +8,12 @@ import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with
 interface GameScreenProps {
   nextTurn: () => void;
   endGame: () => void;
-  addLogEntry: (playerIndex: number, action: GameLogActionWithCount, count?: number) => void;
+  addLogEntry: (
+    playerIndex: number,
+    action: GameLogActionWithCount,
+    count?: number,
+    correction?: boolean
+  ) => void;
 }
 
 const GameScreen: React.FC<GameScreenProps> = ({ nextTurn, endGame, addLogEntry }) => {

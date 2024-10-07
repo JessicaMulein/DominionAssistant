@@ -14,7 +14,7 @@ const GameLogEntry: React.FC<GameLogEntryProps> = ({ gameStart, entry }) => {
   };
 
   return (
-    <TableRow>
+    <TableRow style={{ backgroundColor: entry.correction ? '#ffeb3b' : 'inherit' }}>
       <TableCell style={{ width: '15%' }}>
         <Typography variant="body2">{formatDate(entry.timestamp)}</Typography>
       </TableCell>

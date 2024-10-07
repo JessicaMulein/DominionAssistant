@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Paper, Box, IconButton, Popover, Tooltip } from '@mui/material';
+import { Checkbox, Paper, Box, IconButton, Popover, Tooltip, Typography } from '@mui/material';
 import { styled } from '@mui/system';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -32,13 +32,19 @@ const CenteredTitle = styled(Box)({
 });
 
 interface PlayerProps {
-  addLogEntry: (playerIndex: number, action: GameLogActionWithCount, count?: number) => void;
+  addLogEntry: (
+    playerIndex: number,
+    action: GameLogActionWithCount,
+    count?: number,
+    correction?: boolean
+  ) => void;
 }
 
 const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   const { gameState, setGameState } = useGameContext();
   const [showNewTurnSettings, setShowNewTurnSettings] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [isCorrection, setIsCorrection] = useState(false);
 
   if (!gameState) {
     return null;
@@ -53,7 +59,7 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
     increment: number
   ) => {
     const gameAction = victoryFieldToGameLogAction<T>(field, subfield, increment);
-    addLogEntry(gameState.selectedPlayerIndex, gameAction, Math.abs(increment));
+    addLogEntry(gameState.selectedPlayerIndex, gameAction, Math.abs(increment), isCorrection);
     setGameState((prevState) => {
       if (!prevState) return prevState;
       const newPlayers = [...prevState.players];
@@ -69,6 +75,10 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
 
       return { ...prevState, players: newPlayers };
     });
+  };
+
+  const handleCorrectionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setIsCorrection(event.target.checked);
   };
 
   const showMats =
@@ -113,7 +123,7 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   };
 
   return (
-    <StyledPaper elevation={3}>
+    <StyledPaper elevation={3} style={{ border: isCorrection ? '2px solid red' : 'none' }}>
       <Box mb={2} display="flex" alignItems="center" justifyContent="space-between">
         <Box display="flex" alignItems="center">
           {isCurrentPlayer && <ArrowRightIcon sx={{ mr: 1 }} />}
@@ -313,6 +323,14 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
           />
         </Box>
       </Popover>
+      <Box position="absolute" bottom={10} left={30} display="flex" alignItems="center">
+        <Checkbox
+          checked={isCorrection}
+          onChange={handleCorrectionChange}
+          inputProps={{ 'aria-label': 'Correction Checkbox' }}
+        />
+        <Typography variant="body2">Correction</Typography>
+      </Box>
     </StyledPaper>
   );
 };

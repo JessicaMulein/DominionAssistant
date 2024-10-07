@@ -54,7 +54,12 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
    * @param count
    * @returns
    */
-  const addLogEntry = (playerIndex: number, action: GameLogActionWithCount, count?: number) => {
+  const addLogEntry = (
+    playerIndex: number,
+    action: GameLogActionWithCount,
+    count?: number,
+    correction?: boolean
+  ) => {
     const playerName = playerIndex > -1 ? gameState.players[playerIndex].name : undefined;
     const newLog: ILogEntry = {
       timestamp: new Date(),
@@ -62,6 +67,7 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
       playerIndex,
       playerName,
       count,
+      correction,
     };
     setGameState((prevGame) => {
       if (!prevGame) return prevGame;
