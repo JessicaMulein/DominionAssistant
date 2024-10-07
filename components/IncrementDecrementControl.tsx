@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, IconButton } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { styled } from '@mui/system';
@@ -26,6 +26,7 @@ const StyledBox = styled(Box)({
 interface IncrementDecrementControlProps {
   label: string;
   value: number;
+  tooltip?: string;
   onIncrement: () => void;
   onDecrement: () => void;
 }
@@ -33,14 +34,23 @@ interface IncrementDecrementControlProps {
 const IncrementDecrementControl: React.FC<IncrementDecrementControlProps> = ({
   label,
   value,
+  tooltip,
   onIncrement,
   onDecrement,
 }) => {
   return (
     <StyledBox>
-      <StyledTypography variant="body1" sx={{ marginRight: 1 }}>
-        {label}:
-      </StyledTypography>
+      {tooltip ? (
+        <Tooltip title={tooltip}>
+          <StyledTypography variant="body1" sx={{ marginRight: 1 }}>
+            {label}:
+          </StyledTypography>
+        </Tooltip>
+      ) : (
+        <StyledTypography variant="body1" sx={{ marginRight: 1 }}>
+          {label}:
+        </StyledTypography>
+      )}
       <IconButton onClick={onDecrement} size="small">
         <RemoveIcon fontSize="small" />
       </IconButton>

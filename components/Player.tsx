@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Paper, Box, IconButton, Popover } from '@mui/material';
+import { Paper, Box, IconButton, Popover, Tooltip } from '@mui/material';
 import { styled } from '@mui/system';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -76,6 +76,32 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
     gameState.options.mats.debt ||
     gameState.options.mats.favors;
 
+  const showGlobalMats = gameState.options.expansions.risingSun && gameState.risingSun;
+
+  const handleProphecyIncrease = () => {
+    addLogEntry(gameState.selectedPlayerIndex, GameLogActionWithCount.ADD_PROPHECY, 1);
+    setGameState((prevState) => {
+      if (!prevState) return prevState;
+      const newGameState = { ...prevState };
+      if (newGameState.risingSun && newGameState.options.expansions.risingSun) {
+        newGameState.risingSun.prophecy += 1;
+      }
+      return newGameState;
+    });
+  };
+
+  const handleProphecyDecrease = () => {
+    addLogEntry(gameState.selectedPlayerIndex, GameLogActionWithCount.REMOVE_PROPHECY, 1);
+    setGameState((prevState) => {
+      if (!prevState) return prevState;
+      const newGameState = { ...prevState };
+      if (newGameState.risingSun && newGameState.options.expansions.risingSun) {
+        newGameState.risingSun.prophecy = Math.max(0, newGameState.risingSun.prophecy - 1);
+      }
+      return newGameState;
+    });
+  };
+
   const handleNewTurnClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
     setShowNewTurnSettings(true);
@@ -101,7 +127,9 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
         <Box display="flex" flexWrap="wrap">
           <ColumnBox>
             <CenteredTitle>
-              <SuperCapsText fontSize={TITLE_SIZE}>Turn</SuperCapsText>
+              <Tooltip title="These values reset every turn">
+                <SuperCapsText fontSize={TITLE_SIZE}>Turn</SuperCapsText>
+              </Tooltip>
             </CenteredTitle>
             <IncrementDecrementControl
               label="Actions"
@@ -122,22 +150,30 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
               onDecrement={() => updateField('turn', 'coins', -1)}
             />
           </ColumnBox>
-          {showMats && (
+          {(showMats || showGlobalMats) && (
             <ColumnBox>
               <CenteredTitle>
-                <SuperCapsText fontSize={TITLE_SIZE}>Mats</SuperCapsText>
+                <Tooltip title="These player mat values persist between turns">
+                  <SuperCapsText fontSize={TITLE_SIZE}>Mats</SuperCapsText>
+                </Tooltip>
               </CenteredTitle>
               {gameState.options.mats.coffersVillagers && (
                 <>
                   <IncrementDecrementControl
                     label="Coffers"
                     value={player.mats.coffers}
+                    tooltip="Spending a coffer automatically gives a coin"
                     onIncrement={() => updateField('mats', 'coffers', 1)}
-                    onDecrement={() => updateField('mats', 'coffers', -1)}
+                    onDecrement={() => {
+                      // spending a coffer gives a coin
+                      updateField('mats', 'coffers', -1);
+                      updateField('turn', 'coins', 1);
+                    }}
                   />
                   <IncrementDecrementControl
                     label="Villagers"
                     value={player.mats.villagers}
+                    tooltip="Spending a villager automatically gives an action"
                     onIncrement={() => updateField('mats', 'villagers', 1)}
                     onDecrement={() => {
                       // spending a villager gives an action
@@ -163,11 +199,33 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
                   onDecrement={() => updateField('mats', 'favors', -1)}
                 />
               )}
+              {showGlobalMats && (
+                <>
+                  <Box sx={{ paddingTop: 2 }}>
+                    <CenteredTitle>
+                      <Tooltip title="Global Mats affect all players and persist between turns">
+                        <SuperCapsText fontSize={TITLE_SIZE}>Global Mats</SuperCapsText>
+                      </Tooltip>
+                    </CenteredTitle>
+                  </Box>
+                  {gameState.options.expansions.risingSun && gameState.risingSun && (
+                    <IncrementDecrementControl
+                      label="Prophecy"
+                      value={gameState.risingSun.prophecy}
+                      tooltip="Rising Sun Prophecy affects all players and persists between turns"
+                      onIncrement={handleProphecyIncrease}
+                      onDecrement={handleProphecyDecrease}
+                    />
+                  )}
+                </>
+              )}
             </ColumnBox>
           )}
           <ColumnBox>
             <CenteredTitle>
-              <SuperCapsText fontSize={TITLE_SIZE}>Victory Points</SuperCapsText>
+              <Tooltip title="Victory points" arrow>
+                <SuperCapsText fontSize={TITLE_SIZE}>Victory</SuperCapsText>
+              </Tooltip>
             </CenteredTitle>
             <IncrementDecrementControl
               label="Estates"

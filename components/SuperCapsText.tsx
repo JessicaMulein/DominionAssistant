@@ -1,47 +1,41 @@
-import React from 'react';
-import { Text, StyleSheet, View, TextStyle } from 'react-native';
+import React, { forwardRef } from 'react';
+import { Typography, Box, TypographyProps } from '@mui/material';
+import { styled } from '@mui/system';
 
-interface SuperCapsTextProps {
-  children: string;
-  style?: TextStyle;
+interface SuperCapsTextProps extends TypographyProps {
   fontSize?: number;
 }
 
-const SuperCapsText: React.FC<SuperCapsTextProps> = ({ children, style, fontSize = 24 }) => {
-  if (!children || typeof children !== 'string') {
-    return null;
+const StyledTypography = styled(Typography)(({ theme }) => ({
+  fontFamily: 'CharlemagneStdBold',
+  display: 'inline-block',
+}));
+
+const FirstLetter = styled('span')(({ theme }) => ({
+  textTransform: 'uppercase',
+  fontSize: '105%',
+}));
+
+const SuperCapsText = forwardRef<HTMLSpanElement, SuperCapsTextProps>(
+  ({ children, fontSize = 24, ...props }, ref) => {
+    if (typeof children !== 'string') {
+      return null;
+    }
+
+    const firstLetter = children.charAt(0);
+    const restOfText = children.slice(1);
+
+    return (
+      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'baseline' }} ref={ref}>
+        <StyledTypography {...props} sx={{ fontSize, lineHeight: 1, ...props.sx }}>
+          <FirstLetter>{firstLetter}</FirstLetter>
+          {restOfText}
+        </StyledTypography>
+      </Box>
+    );
   }
+);
 
-  const firstLetter = children.charAt(0);
-  const restOfText = children.slice(1);
-
-  return (
-    <View style={styles.container}>
-      <Text
-        style={[
-          styles.text,
-          style,
-          { ...styles.firstLetter, fontSize: fontSize * 1.05, lineHeight: fontSize },
-        ]}
-      >
-        {firstLetter}
-      </Text>
-      <Text style={[styles.text, style, { fontSize, lineHeight: fontSize }]}>{restOfText}</Text>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  text: {
-    fontFamily: 'CharlemagneStdBold',
-  },
-  firstLetter: {
-    textTransform: 'uppercase',
-  },
-});
+SuperCapsText.displayName = 'SuperCapsText';
 
 export default SuperCapsText;

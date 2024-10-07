@@ -2,7 +2,6 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Scoreboard from '@/components/Scoreboard';
 import Player from '@/components/Player';
-import GlobalMats from '@/components/GlobalMats';
 import { Box, Button } from '@mui/material';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
 
@@ -16,7 +15,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ nextTurn, endGame, addLogEntry 
   return (
     <View style={styles.container}>
       <Scoreboard />
-      <GlobalMats addLogEntry={addLogEntry} />
       <Player addLogEntry={addLogEntry} />
       <Box sx={{ display: 'flex', flexDirection: 'row', gap: 2, marginTop: 2 }}>
         <Button variant="contained" color="primary" onClick={nextTurn}>
