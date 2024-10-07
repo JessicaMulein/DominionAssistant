@@ -17,11 +17,11 @@ import * as SplashScreen from 'expo-splash-screen';
 import theme from '@/components/theme';
 import GameLogScreen from '@/app/(tabs)/game-log';
 import LoadSaveGameScreen from '@/app/(tabs)/load-save-game';
-import SpaceMono from './assets/fonts/SpaceMono-Regular.ttf';
-import CharlemagneStdBold from './assets/fonts/CharlemagneStd-Bold.ttf';
-import TrajanProBold from './assets/fonts/TrajanPro-Bold.otf';
-import TrajanProRegular from './assets/fonts/TrajanPro-Regular.ttf';
-import MinionProBold from './assets/fonts/Minion Pro/Minion Pro Bold.ttf';
+import SpaceMono from '@/assets/fonts/SpaceMono-Regular.ttf';
+import CharlemagneStdBold from '@/assets/fonts/CharlemagneStd-Bold.ttf';
+import TrajanProBold from '@/assets/fonts/TrajanPro-Bold.otf';
+import TrajanProRegular from '@/assets/fonts/TrajanPro-Regular.ttf';
+import MinionProBold from '@/assets/fonts/Minion Pro/Minion Pro Bold.ttf';
 
 const Stack = createStackNavigator<RootStackParamList>();
 

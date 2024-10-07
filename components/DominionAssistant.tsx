@@ -14,8 +14,8 @@ import { CurrentStep } from '@/game/enumerations/current-step';
 import { NO_PLAYER } from '@/game/constants';
 
 interface DominionAssistantProps {
-  route: any;
-  navigation: any;
+  route: unknown;
+  navigation: unknown;
 }
 
 const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation }) => {

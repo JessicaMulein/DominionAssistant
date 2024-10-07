@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -20,7 +20,7 @@ const SelectFirstPlayer: React.FC<SelectFirstPlayerProps> = ({ nextStep }) => {
   const { gameState, setGameState } = useGameContext();
   const theme = useTheme();
 
-  const selectRandomFirstPlayer = () => {
+  const selectRandomFirstPlayer = useCallback(() => {
     if (gameState.players.length > 0) {
       const randomIndex = Math.floor(Math.random() * gameState.players.length);
       setGameState((prevState) => ({
@@ -30,11 +30,11 @@ const SelectFirstPlayer: React.FC<SelectFirstPlayerProps> = ({ nextStep }) => {
         selectedPlayerIndex: randomIndex,
       }));
     }
-  };
+  }, [gameState.players.length, setGameState]);
 
   useEffect(() => {
     selectRandomFirstPlayer();
-  }, []);
+  }, [selectRandomFirstPlayer]);
 
   return (
     <Box>

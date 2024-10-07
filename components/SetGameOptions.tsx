@@ -28,7 +28,7 @@ const SetGameOptions: React.FC<SetGameOptionsProps> = ({ startGame }) => {
       if (field === 'curses') {
         newOptions.curses = value;
       } else {
-        (newOptions[field] as any)[subfield as string] = value;
+        (newOptions[field] as Record<string, boolean>)[subfield as string] = value;
       }
 
       return { ...prevState, options: newOptions };

@@ -6,11 +6,11 @@ Welcome to the **Unofficial Dominion Assistant**, a React Native application des
 
 ## Disclaimer for End Users
 
-Please note that the Unofficial Dominion Assistant is not affiliated with or endorsed by the makers of Dominion or Donald X Vaccarino. This application is a fan-built project created to enhance your gameplay experience and requires ownership of the physical Dominion game to use. It does not allow you to play without having the original game. The use of the Dominion logo is intended solely for personal use to support the Dominion community and should be considered under the *Fair Use Doctrine*. 
+Please note that the Unofficial Dominion Assistant is not affiliated with or endorsed by the makers of Dominion or Donald X Vaccarino. This application is a fan-built project created to enhance your gameplay experience and requires ownership of the physical Dominion game to use. It does not allow you to play without having the original game. The use of the Dominion logo is intended solely for personal use to support the Dominion community and should be considered under the _Fair Use Doctrine_.
 
 ### Fair Use Doctrine
 
-Under *17 U.S.C. § 107*, fair use allows limited use of copyrighted material without requiring permission from the rights holders. Factors to consider include:
+Under _17 U.S.C. § 107_, fair use allows limited use of copyrighted material without requiring permission from the rights holders. Factors to consider include:
 
 - The purpose and character of the use (e.g., educational, non-commercial).
 - The nature of the copyrighted work.
@@ -18,8 +18,10 @@ Under *17 U.S.C. § 107*, fair use allows limited use of copyrighted material wi
 - The effect of the use on the potential market for the original work.
 
 **Case References**:
-- In *Campbell v. Acuff-Rose Music, Inc.*, 510 U.S. 569 (1994), the U.S. Supreme Court emphasized that transformative uses of copyrighted material could qualify as fair use.
-- In *Lentz v. Morrow*, 104 Cal.App.3d 392 (1980), the court upheld that using copyrighted material in a manner that requires the original for use is less likely to infringe on the copyright holder’s rights.
+
+- In _Campbell v. Acuff-Rose Music, Inc._, 510 U.S. 569 (1994), the U.S. Supreme Court emphasized that transformati
+  ve uses of copyrighted material could qualify as fair use.
+- In _Lentz v. Morrow_, 104 Cal.App.3d 392 (1980), the court upheld that using copyrighted material in a manner that requires the original for use is less likely to infringe on the copyright holder’s rights.
 
 Our application, as a fan-built tool that does not replicate the game, could be argued as transformative.
 
@@ -82,6 +84,7 @@ In the output, you'll find options to open the app in a development build, Andro
    ```bash
    git clone https://github.com/Digital-Defiance/DominionAssistant.git
    ```
+
 2. Open the project folder in Visual Studio Code.
 3. When prompted, click "Reopen in Container" or use the command palette (F1) and select "Remote-Containers: Reopen in Container".
 4. VS Code will build the dev container and set up the environment. This may take a few minutes the first time.
@@ -92,7 +95,7 @@ In the output, you'll find options to open the app in a development build, Andro
 6. Start the app:
    ```bash
    yarn start
-   ```   
+   ```
 
 In the output, you'll find options to open the app in a
 
@@ -123,6 +126,7 @@ The app consists of several main screens:
 Navigate through these screens using the tab bar at the bottom of the app.
 
 To start a new game:
+
 1. Add player names
 2. Set game options (including expansions and special rules)
 3. Start the game and use the interface to track scores, turns, and game events
@@ -130,6 +134,7 @@ To start a new game:
 ## Development
 
 Other commands available:
+
 - yarn start: Starts the Expo development server
 - yarn android: Starts the app on Android
 - yarn build:android: Builds the Android app using EAS with a preview profile
