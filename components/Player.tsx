@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { Checkbox, Paper, Box, IconButton, Popover, Tooltip, Typography } from '@mui/material';
+import {
+  Checkbox,
+  Paper,
+  Box,
+  IconButton,
+  Popover,
+  Tooltip,
+  Typography,
+  useTheme,
+} from '@mui/material';
 import { styled } from '@mui/system';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -41,6 +50,7 @@ interface PlayerProps {
 }
 
 const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
+  const theme = useTheme();
   const { gameState, setGameState } = useGameContext();
   const [showNewTurnSettings, setShowNewTurnSettings] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
@@ -123,7 +133,16 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   };
 
   return (
-    <StyledPaper elevation={3} style={{ border: isCorrection ? '2px solid red' : 'none' }}>
+    <StyledPaper
+      elevation={3}
+      style={{
+        border: isCorrection
+          ? `2px solid ${theme.palette.error.main}`
+          : !isCurrentPlayer
+          ? `2px solid ${theme.palette.primary.main}`
+          : 'none',
+      }}
+    >
       <Box mb={2} display="flex" alignItems="center" justifyContent="space-between">
         <Box display="flex" alignItems="center">
           {isCurrentPlayer && <ArrowRightIcon sx={{ mr: 1 }} />}
