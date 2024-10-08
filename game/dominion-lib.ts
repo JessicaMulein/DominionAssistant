@@ -3,6 +3,7 @@ import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with
 import { IGame } from '@/game/interfaces/game';
 import { IGameSupply } from '@/game/interfaces/game-supply';
 import { ILogEntry } from '@/game/interfaces/log-entry';
+import { SavedGameMetadata } from '@/game/interfaces/saved-game-metadata';
 import {
   COPPER_VALUE,
   CURSE_VP,
@@ -248,6 +249,7 @@ export function verifyEnumKeysMatch(enum1: object, enum2: object): boolean {
 
 export const saveGame = async (game: IGame, saveName: string) => {
   try {
+    const saveId = `${saveName}_${Date.now()}`;
     const gameToSave = {
       ...game,
       log: game.log.map((entry) => ({
@@ -256,22 +258,50 @@ export const saveGame = async (game: IGame, saveName: string) => {
       })),
     };
     const jsonValue = JSON.stringify(gameToSave);
-    await AsyncStorage.setItem(`@dominion_game_${saveName}`, jsonValue);
+    await AsyncStorage.setItem(`@dominion_game_${saveId}`, jsonValue);
 
     // Update list of saved games
     const savedGames = await getSavedGamesList();
-    if (!savedGames.includes(saveName)) {
-      savedGames.push(saveName);
-      await AsyncStorage.setItem('@dominion_saved_games', JSON.stringify(savedGames));
-    }
+    const newGameMetadata: SavedGameMetadata = {
+      id: saveId,
+      name: saveName,
+      savedAt: new Date(),
+    };
+    savedGames.push(newGameMetadata);
+    await AsyncStorage.setItem(
+      '@dominion_saved_games',
+      JSON.stringify(
+        savedGames.map((game) => ({
+          ...game,
+          savedAt: game.savedAt.toISOString(),
+        }))
+      )
+    );
   } catch (e) {
     console.error('Error saving game:', e);
   }
 };
 
-export const loadGame = async (saveName: string): Promise<IGame | null> => {
+export const getSavedGamesList = async (): Promise<SavedGameMetadata[]> => {
   try {
-    const jsonValue = await AsyncStorage.getItem(`@dominion_game_${saveName}`);
+    const jsonValue = await AsyncStorage.getItem('@dominion_saved_games');
+    if (jsonValue != null) {
+      const parsedGames = JSON.parse(jsonValue);
+      return parsedGames.map((game: any) => ({
+        ...game,
+        savedAt: new Date(game.savedAt),
+      }));
+    }
+    return [];
+  } catch (e) {
+    console.error('Error getting saved games list:', e);
+    return [];
+  }
+};
+
+export const loadGame = async (saveId: string): Promise<IGame | null> => {
+  try {
+    const jsonValue = await AsyncStorage.getItem(`@dominion_game_${saveId}`);
     if (jsonValue == null) return null;
 
     const parsedGame = JSON.parse(jsonValue);
@@ -289,23 +319,13 @@ export const loadGame = async (saveName: string): Promise<IGame | null> => {
   }
 };
 
-export const getSavedGamesList = async (): Promise<string[]> => {
+export const deleteSavedGame = async (saveId: string) => {
   try {
-    const jsonValue = await AsyncStorage.getItem('@dominion_saved_games');
-    return jsonValue != null ? JSON.parse(jsonValue) : [];
-  } catch (e) {
-    console.error('Error getting saved games list:', e);
-    return [];
-  }
-};
-
-export const deleteSavedGame = async (saveName: string) => {
-  try {
-    await AsyncStorage.removeItem(`@dominion_game_${saveName}`);
+    await AsyncStorage.removeItem(`@dominion_game_${saveId}`);
 
     // Update list of saved games
     let savedGames = await getSavedGamesList();
-    savedGames = savedGames.filter((name) => name !== saveName);
+    savedGames = savedGames.filter((game) => game.id !== saveId);
     await AsyncStorage.setItem('@dominion_saved_games', JSON.stringify(savedGames));
   } catch (e) {
     console.error('Error deleting saved game:', e);
