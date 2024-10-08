@@ -23,6 +23,7 @@ import { CurrentStep } from '@/game/enumerations/current-step';
 
 const LoadSaveGame: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
+  const [openOverwriteDialog, setOpenOverwriteDialog] = useState(false);
   const { gameState, setGameState } = useGameContext();
   const [savedGames, setSavedGames] = useState<SavedGameMetadata[]>([]);
   const [saveName, setSaveName] = useState('');
@@ -39,8 +40,24 @@ const LoadSaveGame: React.FC = () => {
 
   const handleSaveGame = async () => {
     if (gameState && saveName) {
-      await saveGame(gameState, saveName);
+      if (selectedGameId) {
+        // If a game is selected, prompt for overwrite
+        setOpenOverwriteDialog(true);
+      } else {
+        // If no game is selected, save as a new game
+        await saveGame(gameState, saveName);
+        setSaveName('');
+        loadSavedGamesList();
+      }
+    }
+  };
+
+  const handleOverwriteConfirm = async () => {
+    if (gameState && saveName && selectedGameId) {
+      await saveGame(gameState, saveName, selectedGameId);
+      setOpenOverwriteDialog(false);
       setSaveName('');
+      setSelectedGameId(null);
       loadSavedGamesList();
     }
   };
@@ -82,6 +99,11 @@ const LoadSaveGame: React.FC = () => {
     }
   };
 
+  const handleSelectGame = (game: SavedGameMetadata) => {
+    setSelectedGameId(game.id);
+    setSaveName(game.name);
+  };
+
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" gutterBottom>
@@ -116,7 +138,7 @@ const LoadSaveGame: React.FC = () => {
           >
             <ListItemButton
               selected={selectedGameId === game.id}
-              onClick={() => setSelectedGameId(game.id)}
+              onClick={() => handleSelectGame(game)}
             >
               <ListItemText
                 primary={game.name}
@@ -152,6 +174,21 @@ const LoadSaveGame: React.FC = () => {
           <Button onClick={handleDialogClose}>Cancel</Button>
           <Button onClick={handleConfirmLoad} autoFocus>
             OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openOverwriteDialog} onClose={() => setOpenOverwriteDialog(false)}>
+        <DialogTitle>Confirm Overwrite</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            A game with this name already exists. Do you want to overwrite it?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenOverwriteDialog(false)}>Cancel</Button>
+          <Button onClick={handleOverwriteConfirm} autoFocus>
+            Overwrite
           </Button>
         </DialogActions>
       </Dialog>

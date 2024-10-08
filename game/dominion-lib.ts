@@ -247,9 +247,9 @@ export function verifyEnumKeysMatch(enum1: object, enum2: object): boolean {
   return true;
 }
 
-export const saveGame = async (game: IGame, saveName: string) => {
+export const saveGame = async (game: IGame, saveName: string, saveId?: string) => {
   try {
-    const saveId = `${saveName}_${Date.now()}`;
+    const id = saveId ?? uuidv4();
     const gameToSave = {
       ...game,
       log: game.log.map((entry) => ({
@@ -258,16 +258,25 @@ export const saveGame = async (game: IGame, saveName: string) => {
       })),
     };
     const jsonValue = JSON.stringify(gameToSave);
-    await AsyncStorage.setItem(`@dominion_game_${saveId}`, jsonValue);
+    await AsyncStorage.setItem(`@dominion_game_${id}`, jsonValue);
 
     // Update list of saved games
     const savedGames = await getSavedGamesList();
+    const existingGameIndex = savedGames.findIndex((game) => game.id === id);
     const newGameMetadata: SavedGameMetadata = {
-      id: saveId,
+      id: id,
       name: saveName,
       savedAt: new Date(),
     };
-    savedGames.push(newGameMetadata);
+
+    if (existingGameIndex !== -1) {
+      // Update existing game metadata
+      savedGames[existingGameIndex] = newGameMetadata;
+    } else {
+      // Add new game metadata
+      savedGames.push(newGameMetadata);
+    }
+
     await AsyncStorage.setItem(
       '@dominion_saved_games',
       JSON.stringify(
