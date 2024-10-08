@@ -1,4 +1,5 @@
 import React from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Box, Typography, Checkbox, Tooltip, Button } from '@mui/material';
 import { useGameContext } from '@/components/GameContext';
 import { OptionField, OptionSubField } from '@/game/types';
@@ -57,6 +58,7 @@ const SetGameOptions: React.FC<SetGameOptionsProps> = ({ startGame }) => {
         },
         log: [
           {
+            id: uuidv4(),
             timestamp: new Date(),
             action: GameLogActionWithCount.START_GAME,
             playerIndex: NO_PLAYER,

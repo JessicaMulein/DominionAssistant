@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { calculateInitialSupply } from '@/game/dominion-lib';
 import { IGame } from '@/game/interfaces/game';
 import { NO_PLAYER, MIN_PLAYERS } from '@/game/constants';
@@ -33,6 +34,7 @@ export const EmptyGameState: IGame = {
   selectedPlayerIndex: NO_PLAYER,
   log: [
     {
+      id: uuidv4(),
       timestamp: new Date(),
       action: GameLogActionWithCount.START_GAME,
       playerIndex: NO_PLAYER,

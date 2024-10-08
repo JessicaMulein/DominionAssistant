@@ -1,5 +1,6 @@
 import React from 'react';
 import { TableCell, TableRow, Typography } from '@mui/material';
+import LinkIcon from '@mui/icons-material/Link';
 import { getTimeSpanFromStartGame, logEntryToString } from '@/game/dominion-lib';
 import { ILogEntry } from '@/game/interfaces/log-entry';
 
@@ -23,9 +24,10 @@ const GameLogEntry: React.FC<GameLogEntryProps> = ({ gameStart, entry }) => {
           {getTimeSpanFromStartGame(gameStart, entry.timestamp)}
         </Typography>
       </TableCell>
-      <TableCell style={{ width: '70%' }}>
+      <TableCell style={{ width: '65%' }}>
         <Typography variant="body1">{logEntryToString(entry)}</Typography>
       </TableCell>
+      <TableCell style={{ width: '5%' }}>{entry.linkedAction && <LinkIcon />}</TableCell>
     </TableRow>
   );
 };

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { v4 as uuidv4 } from 'uuid';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
 import { IGame } from '@/game/interfaces/game';
 import { IGameSupply } from '@/game/interfaces/game-supply';
@@ -318,6 +319,7 @@ export const loadGame = async (saveId: string): Promise<IGame | null> => {
     // Parse the timestamps in the log entries
     parsedGame.log = parsedGame.log.map((entry: ILogEntry) => ({
       ...entry,
+      id: entry.id ?? uuidv4(),
       timestamp: new Date(entry.timestamp),
     }));
 

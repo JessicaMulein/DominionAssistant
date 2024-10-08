@@ -8,6 +8,7 @@ import SuperCapsText from '@/components/SuperCapsText';
 import IncrementDecrementControl from '@/components/IncrementDecrementControl';
 import { TITLE_SIZE } from '@/components/style';
 import { IPlayer } from '@/game/interfaces/player';
+import { ILogEntry } from '@/game/interfaces/log-entry';
 import { victoryFieldToGameLogAction } from '@/game/dominion-lib';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
 import { PlayerField, PlayerSubField } from '@/game/types';
@@ -36,8 +37,9 @@ interface PlayerProps {
     playerIndex: number,
     action: GameLogActionWithCount,
     count?: number,
-    correction?: boolean
-  ) => void;
+    correction?: boolean,
+    linkedAction?: string
+  ) => ILogEntry;
 }
 
 const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
@@ -53,13 +55,20 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   const player = gameState.players[gameState.selectedPlayerIndex];
   const isCurrentPlayer = gameState.selectedPlayerIndex === gameState.currentPlayerIndex;
 
-  const updateField = <T extends PlayerField>(
+  function updateField<T extends PlayerField>(
     field: T,
     subfield: PlayerSubField<T>,
-    increment: number
-  ) => {
+    increment: number,
+    linkedActionId?: string
+  ): ILogEntry {
     const gameAction = victoryFieldToGameLogAction<T>(field, subfield, increment);
-    addLogEntry(gameState.selectedPlayerIndex, gameAction, Math.abs(increment), isCorrection);
+    const log = addLogEntry(
+      gameState.selectedPlayerIndex,
+      gameAction,
+      Math.abs(increment),
+      isCorrection,
+      linkedActionId
+    );
     setGameState((prevState) => {
       if (!prevState) return prevState;
       const newPlayers = [...prevState.players];
@@ -75,7 +84,8 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
 
       return { ...prevState, players: newPlayers };
     });
-  };
+    return log;
+  }
 
   const handleCorrectionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsCorrection(event.target.checked);
@@ -176,8 +186,8 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
                     onIncrement={() => updateField('mats', 'coffers', 1)}
                     onDecrement={() => {
                       // spending a coffer gives a coin
-                      updateField('mats', 'coffers', -1);
-                      updateField('turn', 'coins', 1);
+                      const record = updateField('mats', 'coffers', -1);
+                      updateField('turn', 'coins', 1, record.id);
                     }}
                   />
                   <IncrementDecrementControl
@@ -187,8 +197,8 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
                     onIncrement={() => updateField('mats', 'villagers', 1)}
                     onDecrement={() => {
                       // spending a villager gives an action
-                      updateField('mats', 'villagers', -1);
-                      updateField('turn', 'actions', 1);
+                      const record = updateField('mats', 'villagers', -1);
+                      updateField('turn', 'actions', 1, record.id);
                     }}
                   />
                 </>
