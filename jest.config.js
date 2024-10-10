@@ -9,4 +9,19 @@ module.exports = {
     '@react-native-async-storage/async-storage':
       '<rootDir>/__mocks__/@react-native-async-storage/async-storage.js',
   },
+  collectCoverage: true,
+  collectCoverageFrom: [
+    '<rootDir>/**/*.{ts,tsx}', // Include all .ts and .tsx files
+    '!<rootDir>/**/*.d.ts', // Exclude TypeScript declaration files
+    '!<rootDir>/**/*test.{ts,tsx}', // Exclude test files
+    '!<rootDir>/dist/**', // Exclude dist folder
+    '!<rootDir>/build/**', // Exclude build folder
+    '!<rootDir>/node_modules/**', // Exclude node_modules folder
+    '!<rootDir>/coverage/**', // Exclude coverage folder
+    '!<rootDir>/.expo/**', // Exclude .expo folder
+    '!<rootDir>/devcontainer/**', // Exclude devcontainer folder
+    '!<rootDir>/.vscode/**', // Exclude .vscode folder
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['json', 'lcov', 'text', 'clover'],
 };
