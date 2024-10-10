@@ -17,6 +17,12 @@ import {
   SILVER_VALUE,
   COLONY_VP,
   PLATINUM_VALUE,
+  NO_PLAYER,
+  EmptyGameSupply,
+  EmptyMatDetails,
+  DefaultTurnDetails,
+  EmptyVictoryDetails,
+  NoPlayerActions,
 } from '@/game/constants';
 import { computeStartingSupply as computeBaseStartingSupply } from '@/game/interfaces/set-kingdom/base';
 import {
@@ -24,8 +30,27 @@ import {
   NullSet as ProsperityNullSet,
 } from '@/game/interfaces/set-kingdom/prosperity';
 import { IPlayer } from '@/game/interfaces/player';
-import { PlayerField, PlayerSubField } from '@/game/types';
+import { PlayerField, PlayerFieldMap, PlayerSubFields } from '@/game/types';
+import { CurrentStep } from '@/game/enumerations/current-step';
+import { calculateInitialSunTokens } from '@/game/interfaces/set-mats/prophecy';
+import { IMatDetails } from '@/game/interfaces/mat-details';
+import { IPlayerGameTurnDetails } from '@/game/interfaces/player-game-turn-details';
+import { IVictoryDetails } from '@/game/interfaces/victory-details';
+import { IGameOptions } from './interfaces/game-options';
 
+export const StepTransitions: Record<CurrentStep, CurrentStep> = {
+  [CurrentStep.AddPlayerNames]: CurrentStep.SelectFirstPlayer,
+  [CurrentStep.SelectFirstPlayer]: CurrentStep.SetGameOptions,
+  [CurrentStep.SetGameOptions]: CurrentStep.GameScreen,
+  [CurrentStep.GameScreen]: CurrentStep.EndGame,
+  [CurrentStep.EndGame]: CurrentStep.EndGame,
+};
+
+/**
+ * Calculate the victory points for a player.
+ * @param player - The player
+ * @returns The victory points
+ */
 export function calculateVictoryPoints(player: IPlayer): number {
   // Add null checks and default values
   const estatePoints = (player.victory.estates || 0) * ESTATE_VP;
@@ -47,50 +72,50 @@ export function calculateVictoryPoints(player: IPlayer): number {
   );
 }
 
-export function calculateRawFunds(player: IPlayer): number {
-  const copperValue = (player.supply.copper || 0) * COPPER_VALUE;
-  const silverValue = (player.supply.silver || 0) * SILVER_VALUE;
-  const goldValue = (player.supply.gold || 0) * GOLD_VALUE;
-  const platinumValue = (player.supply.platinum || 0) * PLATINUM_VALUE;
-  return copperValue + silverValue + goldValue + platinumValue;
-}
-
-export function calculateInitialSupply(
-  numPlayers: number,
-  curses: boolean,
-  prosperity: boolean
-): IGameSupply {
-  const baseSupply = computeBaseStartingSupply(numPlayers, curses);
-  const prosperitySupply = prosperity
+/**
+ * Calculate the initial game kingdom card supply based on the number of players and options.
+ * @param numPlayers - The number of players
+ * @param curses - Whether curses are included
+ * @param prosperity - Whether Prosperity cards are included
+ * @returns The initial game supply
+ */
+export function calculateInitialSupply(numPlayers: number, options: IGameOptions): IGameSupply {
+  const baseSupply = computeBaseStartingSupply(numPlayers, options.curses);
+  const prosperitySupply = options.expansions.prosperity
     ? computeProsperityStartingSupply(numPlayers)
     : ProsperityNullSet;
   return { ...baseSupply, ...prosperitySupply };
 }
 
+/**
+ * Distribute the initial supply of cards to the players.
+ * @param game - The game
+ * @returns The updated game
+ */
 export function distributeInitialSupply(game: IGame): IGame {
   const updatedGame = { ...game };
-  updatedGame.players = updatedGame.players.map((player) => {
-    const updatedPlayer = { ...player };
-    updatedPlayer.supply.copper += HAND_STARTING_COPPERS;
-    updatedGame.supply.copper -= HAND_STARTING_COPPERS;
-    if (updatedGame.players.length >= 5) {
-      // insufficient estates for 5+ players, distribute 2 estates and 1 additional copper
-      updatedPlayer.supply.estate += HAND_STARTING_ESTATES - 1;
-      updatedPlayer.supply.copper += 1;
-      updatedGame.supply.copper -= 1;
-      updatedPlayer.victory.estates += HAND_STARTING_ESTATES - 1;
-    } else {
-      updatedPlayer.supply.estate += HAND_STARTING_ESTATES;
-      updatedPlayer.victory.estates += HAND_STARTING_ESTATES;
-    }
-    return updatedPlayer;
-  });
+  const playerCount = updatedGame.players.length;
+  updatedGame.players = updatedGame.players.map((player) => ({
+    ...player,
+    victory: {
+      ...EmptyVictoryDetails,
+      estates: HAND_STARTING_ESTATES,
+    },
+  }));
+  updatedGame.supply.coppers -= playerCount * HAND_STARTING_COPPERS;
   return updatedGame;
 }
 
-export function victoryFieldToGameLogAction<T extends PlayerField>(
-  field: PlayerField,
-  subfield: PlayerSubField<T>,
+/**
+ * Map a victory field and subfield to a game log action.
+ * @param field - The field being updated
+ * @param subfield - The subfield being updated
+ * @param increment - The amount to increment the field by
+ * @returns The game log action
+ */
+export function victoryFieldToGameLogAction<T extends keyof PlayerFieldMap>(
+  field: T,
+  subfield: PlayerFieldMap[T],
   increment: number
 ): GameLogActionWithCount {
   switch (field) {
@@ -129,10 +154,6 @@ export function victoryFieldToGameLogAction<T extends PlayerField>(
           return increment > 0
             ? GameLogActionWithCount.ADD_FAVORS
             : GameLogActionWithCount.REMOVE_FAVORS;
-        case 'prophecy':
-          return increment > 0
-            ? GameLogActionWithCount.ADD_PROPHECY
-            : GameLogActionWithCount.REMOVE_PROPHECY;
         default:
           throw new Error(`Invalid mats subfield: ${subfield as string}`);
       }
@@ -191,6 +212,11 @@ export function victoryFieldToGameLogAction<T extends PlayerField>(
   }
 }
 
+/**
+ * Transform a log entry to a string.
+ * @param entry - The log entry
+ * @returns The string representation of the log entry
+ */
 export function logEntryToString(entry: ILogEntry): string {
   const playerName = entry.playerName ? `<${entry.playerName}> ` : '';
   let actionString = entry.action as string;
@@ -205,6 +231,11 @@ export function logEntryToString(entry: ILogEntry): string {
   return `${playerName}${actionString}`;
 }
 
+/**
+ * Get the start date of the game from the log entries.
+ * @param logEntries - The log entries
+ * @returns The start date
+ */
 export function getStartDateFromLog(logEntries: ILogEntry[]): Date {
   if (logEntries.length === 0) {
     throw new Error('Log entries are empty.');
@@ -219,6 +250,12 @@ export function getStartDateFromLog(logEntries: ILogEntry[]): Date {
   return new Date(startGameEntry.timestamp);
 }
 
+/**
+ * Get the time span from the start of the game to the given event time.
+ * @param startDate - The start date of the game
+ * @param eventTime - The event time
+ * @returns The time span from the start of the game to the event time
+ */
 export function getTimeSpanFromStartGame(startDate: Date, eventTime: Date): string {
   const timeSpan = eventTime.getTime() - startDate.getTime();
 
@@ -231,24 +268,47 @@ export function getTimeSpanFromStartGame(startDate: Date, eventTime: Date): stri
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
-export function verifyEnumKeysMatch(enum1: object, enum2: object): boolean {
-  const keys1 = Object.keys(enum1);
-  const keys2 = Object.keys(enum2);
-
-  if (keys1.length !== keys2.length) {
-    return false;
-  }
-
-  for (const key of keys1) {
-    if (!keys2.includes(key)) {
-      return false;
-    }
-  }
-
-  return true;
+/**
+ * Add a log entry to the game log.
+ * @param playerIndex
+ * @param action
+ * @param count
+ * @param correction If true, this log entry is a correction to a previous entry.
+ * @param linkedAction If provided, an ID of a linked action. Some actions are part of a chain and should be linked for undo functionality.
+ * @returns
+ */
+export function addLogEntry(
+  game: IGame,
+  playerIndex: number,
+  action: GameLogActionWithCount,
+  count?: number,
+  correction?: boolean,
+  linkedAction?: string,
+  playerTurnDetails?: IPlayerGameTurnDetails[]
+): ILogEntry {
+  const playerName = playerIndex > -1 ? game.players[playerIndex].name : undefined;
+  const newLog: ILogEntry = {
+    id: uuidv4(),
+    timestamp: new Date(),
+    action,
+    playerIndex,
+    playerName,
+    count,
+    correction,
+    linkedAction,
+    playerTurnDetails,
+  };
+  game.log.push(newLog);
+  return newLog;
 }
 
-export const saveGame = async (game: IGame, saveName: string, saveId?: string) => {
+/**
+ * Save the game state to local storage.
+ * @param game - The game state
+ * @param saveName - The name of the save
+ * @param saveId - The ID of the save (used to overwrite an existing save)
+ */
+export async function saveGame(game: IGame, saveName: string, saveId?: string) {
   try {
     const id = saveId ?? uuidv4();
     const gameToSave = {
@@ -290,9 +350,13 @@ export const saveGame = async (game: IGame, saveName: string, saveId?: string) =
   } catch (e) {
     console.error('Error saving game:', e);
   }
-};
+}
 
-export const getSavedGamesList = async (): Promise<SavedGameMetadata[]> => {
+/**
+ * Get the list of saved games from local storage.
+ * @returns The list of saved games
+ */
+export async function getSavedGamesList(): Promise<SavedGameMetadata[]> {
   try {
     const jsonValue = await AsyncStorage.getItem('@dominion_saved_games');
     if (jsonValue != null) {
@@ -307,9 +371,14 @@ export const getSavedGamesList = async (): Promise<SavedGameMetadata[]> => {
     console.error('Error getting saved games list:', e);
     return [];
   }
-};
+}
 
-export const loadGame = async (saveId: string): Promise<IGame | null> => {
+/**
+ * Load a game from local storage.
+ * @param saveId - The ID of the save
+ * @returns The loaded game
+ */
+export async function loadGame(saveId: string): Promise<IGame | null> {
   try {
     const jsonValue = await AsyncStorage.getItem(`@dominion_game_${saveId}`);
     if (jsonValue == null) return null;
@@ -323,14 +392,19 @@ export const loadGame = async (saveId: string): Promise<IGame | null> => {
       timestamp: new Date(entry.timestamp),
     }));
 
-    return parsedGame;
+    // add the load game entry as we return the game
+    return loadGameAddLog(parsedGame);
   } catch (e) {
     console.error('Error loading game:', e);
     return null;
   }
-};
+}
 
-export const deleteSavedGame = async (saveId: string) => {
+/**
+ * Delete a saved game from local storage.
+ * @param saveId - The ID of the save
+ */
+export async function deleteSavedGame(saveId: string) {
   try {
     await AsyncStorage.removeItem(`@dominion_game_${saveId}`);
 
@@ -341,48 +415,477 @@ export const deleteSavedGame = async (saveId: string) => {
   } catch (e) {
     console.error('Error deleting saved game:', e);
   }
-};
+}
 
+/**
+ * Create a new player object with default values
+ * @param playerName - The name of the player
+ * @returns The new player object
+ */
 export function newPlayer(playerName: string): IPlayer {
   const newPlayer: IPlayer = {
     name: playerName.trim(),
     startActionsPerTurn: 1,
-    supply: {
-      copper: 0,
-      silver: 0,
-      gold: 0,
-      platinum: 0,
-      estate: 0,
-      duchy: 0,
-      province: 0,
-      colony: 0,
-      curses: 0,
-    },
-    mats: {
-      villagers: 0,
-      coffers: 0,
-      debt: 0,
-      favors: 0,
-    },
-    turn: {
-      actions: 1,
-      buys: 1,
-      coins: 0,
-    },
-    newTurn: {
-      actions: 1,
-      buys: 1,
-      coins: 0,
-    },
-    victory: {
-      tokens: 0,
-      estates: 0,
-      duchies: 0,
-      provinces: 0,
-      colonies: 0,
-      other: 0,
-      curses: 0,
-    },
+    mats: EmptyMatDetails,
+    turn: DefaultTurnDetails,
+    newTurn: DefaultTurnDetails,
+    victory: EmptyVictoryDetails,
   };
   return newPlayer;
+}
+
+/**
+ * A basic game state with no players or options.
+ */
+export const EmptyGameState: IGame = {
+  currentStep: 1,
+  players: [],
+  setsRequired: 1,
+  supply: EmptyGameSupply,
+  options: {
+    curses: true,
+    expansions: { prosperity: false, renaissance: false, risingSun: false },
+    mats: {
+      coffersVillagers: false,
+      debt: false,
+      favors: false,
+    },
+  },
+  currentTurn: 1,
+  risingSun: {
+    prophecy: 0,
+    greatLeaderProphecy: false,
+  },
+  currentPlayerIndex: NO_PLAYER,
+  firstPlayerIndex: NO_PLAYER,
+  selectedPlayerIndex: NO_PLAYER,
+  log: [
+    {
+      id: uuidv4(),
+      timestamp: new Date(),
+      action: GameLogActionWithCount.START_GAME,
+      playerIndex: NO_PLAYER,
+    },
+  ],
+};
+
+/**
+ * Initialize the game state with the given number of players and options.
+ * @param gameStateWithOptions - The game state with players and selected options
+ * @returns The updated game state
+ */
+export const NewGameState = (gameStateWithOptions: IGame): IGame => {
+  // Calculate initial supply
+  const initialSupply = calculateInitialSupply(
+    gameStateWithOptions.players.length,
+    gameStateWithOptions.options
+  );
+
+  // Create a new game state with the initial supply
+  let newGameState: IGame = {
+    ...gameStateWithOptions,
+    supply: initialSupply,
+    currentStep: CurrentStep.GameScreen,
+  };
+
+  // Distribute initial supply to players
+  newGameState = distributeInitialSupply(newGameState);
+
+  // Initialize Rising Sun tokens if the expansion is enabled
+  if (newGameState.options.expansions.risingSun) {
+    newGameState.risingSun = {
+      ...newGameState.risingSun,
+      prophecy: newGameState.options.expansions.risingSun
+        ? calculateInitialSunTokens(newGameState.players.length).suns
+        : 0,
+      greatLeaderProphecy: newGameState.risingSun.greatLeaderProphecy,
+    };
+  }
+
+  return newGameState;
+};
+
+/**
+ * Load a game from local storage and add a log entry for the load event.
+ * @param gameState - The game state
+ * @returns The updated game state
+ */
+export function loadGameAddLog(gameState: IGame): IGame {
+  /* when loading a game, the most recent entry should be a save game event.
+   * we're going to use that id and create a linked entry for new log entry.
+   */
+  if (gameState.log.length === 0) {
+    throw new Error('No log entries found.');
+  }
+  const lastLog = gameState.log[gameState.log.length - 1];
+  if (lastLog.action !== GameLogActionWithCount.SAVE_GAME) {
+    throw new Error('Last log entry is not a SAVE_GAME event.');
+  }
+  addLogEntry(gameState, NO_PLAYER, GameLogActionWithCount.LOAD_GAME, undefined, false, lastLog.id);
+  return gameState;
+}
+
+/**
+ * Returns the linked actions for the given log entry.
+ * @param log - The log entries
+ * @param index - The index of the log entry
+ * @returns The linked actions
+ */
+export function getLinkedActions(log: ILogEntry[], index: number): ILogEntry[] {
+  // do not recurse if the log entry is a linked action itself
+  if (log[index].linkedAction !== undefined) {
+    return [];
+  }
+  // get all linked actions
+  const linkedActions = log.filter((logEntry) => logEntry.linkedAction === log[index].id);
+  return [log[index], ...linkedActions];
+}
+
+/**
+ * Checks if an action can be undone without causing negative counters.
+ * @param game - The current game state
+ * @param logIndex - The index of the action to undo in the game log
+ * @returns Whether the action can be undone
+ */
+export function canUndoAction(game: IGame, logIndex: number): boolean {
+  if (logIndex < 0 || logIndex >= game.log.length) {
+    return false;
+  }
+
+  const actionToUndo = game.log[logIndex];
+
+  // Check if it's a NEXT_TURN action that's not the last action
+  if (actionToUndo.action === GameLogActionWithCount.NEXT_TURN && logIndex < game.log.length - 1) {
+    return false;
+  }
+
+  // Create a temporary game state to simulate undoing
+  let tempGame = JSON.parse(JSON.stringify(game)) as IGame;
+
+  // Remove the action and its linked actions
+  const actionsToRemove = new Set([logIndex]);
+  let currentIndex = logIndex;
+  while (tempGame.log[currentIndex].linkedAction) {
+    const linkedIndex = tempGame.log.findIndex(
+      (entry) => entry.id === tempGame.log[currentIndex].linkedAction
+    );
+    if (linkedIndex !== -1) {
+      actionsToRemove.add(linkedIndex);
+      currentIndex = linkedIndex;
+    } else {
+      break;
+    }
+  }
+
+  // Remove actions in reverse order
+  const sortedIndicesToRemove = Array.from(actionsToRemove).sort((a, b) => b - a);
+  for (const index of sortedIndicesToRemove) {
+    tempGame.log.splice(index, 1);
+  }
+
+  // Try to reconstruct the game state
+  try {
+    reconstructGameState(tempGame, tempGame.log.length - 1);
+    return true;
+  } catch (error) {
+    // If an error is thrown, it means we encountered negative counters
+    return false;
+  }
+}
+
+/**
+ * We can only undo "next turn" actions if it is the most recent action.
+ * Therefore we can clean out the playerDetails for past turns to save space.
+ * Do not clear the next turn log playerDetails for the most recent action if it is a NEXT_TURN.
+ * @param log
+ */
+export function cleanLogTurns(log: ILogEntry[]): ILogEntry[] {
+  // remove all but the last log's player details for past turns
+  const newLog = [...log];
+  // remove the player details for past turns
+  newLog.forEach((log, index) => {
+    if (log.action === GameLogActionWithCount.NEXT_TURN && index < newLog.length - 1) {
+      log.playerTurnDetails = undefined;
+      // remove the playerTurnDetails field for the log entry
+      delete log.playerTurnDetails;
+    }
+  });
+
+  return newLog;
+}
+
+/**
+ * Update the player field with the given increment.
+ * @param game - The game state
+ * @param playerIndex - The index of the player
+ * @param field - The field to update
+ * @param subfield - The subfield to update
+ * @param increment - The amount to increment the field by
+ * @returns The updated game state
+ */
+export function updatePlayerField<T extends keyof PlayerFieldMap>(
+  game: IGame,
+  playerIndex: number,
+  field: T,
+  subfield: PlayerFieldMap[T],
+  increment: number
+): IGame {
+  const updatedGame = { ...game };
+  const player = { ...updatedGame.players[playerIndex] };
+
+  if (field === 'victory' || field === 'turn' || field === 'mats' || field === 'newTurn') {
+    (player[field] as any)[subfield] = Math.max(
+      ((player[field] as any)[subfield] || 0) + increment,
+      0
+    );
+  } else {
+    throw new Error(`Invalid field: ${field}`);
+  }
+
+  updatedGame.players[playerIndex] = player;
+  return updatedGame;
+}
+
+/**
+ * Undoes a specific action in the game log.
+ * @param game - The current game state
+ * @param logIndex - The index of the action to undo in the game log
+ * @returns The updated game state after undoing the action
+ */
+export function undoAction(game: IGame, logIndex: number): { game: IGame; success: boolean } {
+  if (!canUndoAction(game, logIndex)) {
+    return { game, success: false };
+  }
+
+  let updatedGame = JSON.parse(JSON.stringify(game)) as IGame;
+
+  // Remove the action and its linked actions
+  const actionsToRemove = new Set([logIndex]);
+  let currentIndex = logIndex;
+  while (updatedGame.log[currentIndex].linkedAction) {
+    const linkedIndex = updatedGame.log.findIndex(
+      (entry) => entry.id === updatedGame.log[currentIndex].linkedAction
+    );
+    if (linkedIndex !== -1) {
+      actionsToRemove.add(linkedIndex);
+      currentIndex = linkedIndex;
+    } else {
+      break;
+    }
+  }
+  console.log('actionsToRemove', actionsToRemove);
+
+  // Remove actions in reverse order
+  const sortedIndicesToRemove = Array.from(actionsToRemove).sort((a, b) => b - a);
+  for (const index of sortedIndicesToRemove) {
+    updatedGame.log.splice(index, 1);
+  }
+  console.log('sortedIndicesToRemove', sortedIndicesToRemove);
+  console.log('updatedGame.log', updatedGame.log);
+
+  // Replay the log
+  try {
+    updatedGame = reconstructGameState(updatedGame, updatedGame.log.length - 1);
+  } catch (error) {
+    console.error('Error undoing action:', error);
+    return { game, success: false };
+  }
+
+  console.log('After reconstruction', updatedGame);
+  return { game: updatedGame, success: true };
+}
+
+/**
+ * Applies a single log action to the game state.
+ * @param game - The current game state
+ * @param logEntry - The log entry to apply
+ * @returns The updated game state after applying the action
+ */
+export function applyLogAction(game: IGame, logEntry: ILogEntry): IGame {
+  let updatedGame = { ...game };
+
+  if (logEntry.action === GameLogActionWithCount.NEXT_TURN) {
+    updatedGame.currentPlayerIndex =
+      (updatedGame.currentPlayerIndex + 1 + updatedGame.players.length) %
+      updatedGame.players.length;
+    updatedGame.currentTurn++;
+    // Reset the current player's turn details
+    updatedGame.players[updatedGame.currentPlayerIndex].turn = { ...DefaultTurnDetails };
+  } else if (logEntry.playerIndex !== NO_PLAYER) {
+    const { field, subfield } = getFieldAndSubfieldFromAction(logEntry.action);
+    if (field && subfield && logEntry.count) {
+      const increment = getActionIncrementMultiplier(logEntry.action) * (logEntry.count || 0);
+      updatedGame = updatePlayerField(
+        updatedGame,
+        logEntry.playerIndex,
+        field as keyof PlayerFieldMap,
+        subfield,
+        increment
+      );
+    }
+  }
+
+  // Handle game-wide counters
+  if (
+    logEntry.action === GameLogActionWithCount.ADD_PROPHECY ||
+    logEntry.action === GameLogActionWithCount.REMOVE_PROPHECY
+  ) {
+    const increment =
+      logEntry.action === GameLogActionWithCount.ADD_PROPHECY
+        ? logEntry.count || 1
+        : -(logEntry.count || 1);
+    if (updatedGame.risingSun) {
+      updatedGame.risingSun.prophecy = Math.max(0, updatedGame.risingSun.prophecy + increment);
+    }
+  }
+
+  // Add handling for any future game-wide counters here
+
+  return updatedGame;
+}
+
+/**
+ * Checks if the game state has any negative counters (player-specific or game-wide).
+ * @param game - The game state to check
+ * @returns Whether the game state has any negative counters
+ */
+function hasNegativeCounters(game: IGame): boolean {
+  // Check player-specific counters
+  for (const player of game.players) {
+    if (
+      Object.values(player.turn).some((value) => value < 0) ||
+      Object.values(player.mats).some((value) => value < 0) ||
+      Object.values(player.victory).some((value) => value < 0) ||
+      Object.values(player.newTurn).some((value) => value < 0)
+    ) {
+      return true;
+    }
+  }
+
+  // Check game-wide counters
+  if (game.risingSun && game.risingSun.prophecy < 0) {
+    return true;
+  }
+
+  // Add checks for any future game-wide counters here
+  // For example:
+  // if (game.someExpansion && game.someExpansion.someCounter < 0) {
+  //   return true;
+  // }
+
+  return false;
+}
+
+/**
+ * Get the field and subfield from a game log action.
+ * @param action - The game log action
+ * @returns The field and subfield
+ */
+export function getFieldAndSubfieldFromAction(action: GameLogActionWithCount): {
+  field: PlayerField | null;
+  subfield: PlayerSubFields | null;
+} {
+  switch (action) {
+    case GameLogActionWithCount.ADD_ACTIONS:
+    case GameLogActionWithCount.REMOVE_ACTIONS:
+      return { field: 'turn', subfield: 'actions' };
+    case GameLogActionWithCount.ADD_BUYS:
+    case GameLogActionWithCount.REMOVE_BUYS:
+      return { field: 'turn', subfield: 'buys' };
+    case GameLogActionWithCount.ADD_COINS:
+    case GameLogActionWithCount.REMOVE_COINS:
+      return { field: 'turn', subfield: 'coins' };
+    case GameLogActionWithCount.ADD_COFFERS:
+    case GameLogActionWithCount.REMOVE_COFFERS:
+      return { field: 'mats', subfield: 'coffers' };
+    case GameLogActionWithCount.ADD_VILLAGERS:
+    case GameLogActionWithCount.REMOVE_VILLAGERS:
+      return { field: 'mats', subfield: 'villagers' };
+    case GameLogActionWithCount.ADD_DEBT:
+    case GameLogActionWithCount.REMOVE_DEBT:
+      return { field: 'mats', subfield: 'debt' };
+    case GameLogActionWithCount.ADD_FAVORS:
+    case GameLogActionWithCount.REMOVE_FAVORS:
+      return { field: 'mats', subfield: 'favors' };
+    case GameLogActionWithCount.ADD_CURSES:
+    case GameLogActionWithCount.REMOVE_CURSES:
+      return { field: 'victory', subfield: 'curses' };
+    case GameLogActionWithCount.ADD_ESTATES:
+    case GameLogActionWithCount.REMOVE_ESTATES:
+      return { field: 'victory', subfield: 'estates' };
+    case GameLogActionWithCount.ADD_DUCHIES:
+    case GameLogActionWithCount.REMOVE_DUCHIES:
+      return { field: 'victory', subfield: 'duchies' };
+    case GameLogActionWithCount.ADD_PROVINCES:
+    case GameLogActionWithCount.REMOVE_PROVINCES:
+      return { field: 'victory', subfield: 'provinces' };
+    case GameLogActionWithCount.ADD_COLONIES:
+    case GameLogActionWithCount.REMOVE_COLONIES:
+      return { field: 'victory', subfield: 'colonies' };
+    case GameLogActionWithCount.ADD_VP_TOKENS:
+    case GameLogActionWithCount.REMOVE_VP_TOKENS:
+      return { field: 'victory', subfield: 'tokens' };
+    case GameLogActionWithCount.ADD_OTHER_VP:
+    case GameLogActionWithCount.REMOVE_OTHER_VP:
+      return { field: 'victory', subfield: 'other' };
+    case GameLogActionWithCount.ADD_NEXT_TURN_ACTIONS:
+    case GameLogActionWithCount.REMOVE_NEXT_TURN_ACTIONS:
+      return { field: 'newTurn', subfield: 'actions' };
+    case GameLogActionWithCount.ADD_NEXT_TURN_BUYS:
+    case GameLogActionWithCount.REMOVE_NEXT_TURN_BUYS:
+      return { field: 'newTurn', subfield: 'buys' };
+    case GameLogActionWithCount.ADD_NEXT_TURN_COINS:
+    case GameLogActionWithCount.REMOVE_NEXT_TURN_COINS:
+      return { field: 'newTurn', subfield: 'coins' };
+    default:
+      return { field: null, subfield: null };
+  }
+}
+
+/**
+ * Get the increment for the given action.
+ * @param action - The game log action
+ * @returns The increment multiplier (positive or negative)
+ */
+export function getActionIncrementMultiplier(action: GameLogActionWithCount): number {
+  if (NoPlayerActions.includes(action)) {
+    return 0;
+  }
+
+  return action.startsWith('Add') ? 1 : -1;
+}
+
+/**
+ * Reconstructs the game state up to a specific log entry.
+ * @param game - The current game state
+ * @param targetLogIndex - The index of the log entry to reconstruct up to
+ * @returns The reconstructed game state
+ */
+export function reconstructGameState(game: IGame, targetLogIndex: number): IGame {
+  let reconstructedGame = NewGameState({
+    ...EmptyGameState,
+    players: game.players.map((player) => ({
+      ...player,
+      turn: DefaultTurnDetails,
+      newTurn: DefaultTurnDetails,
+    })),
+    options: { ...game.options },
+    firstPlayerIndex: game.firstPlayerIndex,
+    currentPlayerIndex: game.firstPlayerIndex,
+    selectedPlayerIndex: game.firstPlayerIndex,
+  });
+
+  // Replay log entries up to the target index
+  for (let i = 0; i <= targetLogIndex && i < game.log.length; i++) {
+    const logEntry = game.log[i];
+    applyLogAction(reconstructedGame, logEntry);
+
+    // Check for negative counters after each action
+    if (hasNegativeCounters(reconstructedGame)) {
+      throw new Error(`Negative counters detected after applying action: ${game.log[i].action}`);
+    }
+  }
+
+  // The log is not updated here, so reconstructedGame.log remains incomplete
+  return reconstructedGame;
 }

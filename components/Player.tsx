@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Checkbox, Paper, Box, IconButton, Popover, Tooltip, Typography } from '@mui/material';
 import { styled } from '@mui/system';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
@@ -7,11 +7,13 @@ import { useGameContext } from '@/components/GameContext';
 import SuperCapsText from '@/components/SuperCapsText';
 import IncrementDecrementControl from '@/components/IncrementDecrementControl';
 import { TITLE_SIZE } from '@/components/style';
-import { IPlayer } from '@/game/interfaces/player';
 import { ILogEntry } from '@/game/interfaces/log-entry';
-import { victoryFieldToGameLogAction } from '@/game/dominion-lib';
+import { updatePlayerField, victoryFieldToGameLogAction } from '@/game/dominion-lib';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
-import { PlayerField, PlayerSubField } from '@/game/types';
+import { PlayerFieldMap, VictoryField } from '@/game/types';
+import { IGame } from '@/game/interfaces/game';
+import { IGameSupply } from '@/game/interfaces/game-supply';
+import { useAlert } from '@/components/AlertContext';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: 5,
@@ -44,48 +46,86 @@ interface PlayerProps {
 
 const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   const { gameState, setGameState } = useGameContext();
+  const { showAlert } = useAlert();
   const [showNewTurnSettings, setShowNewTurnSettings] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [isCorrection, setIsCorrection] = useState(false);
 
-  if (!gameState) {
-    return null;
+  if (gameState.selectedPlayerIndex === -1) {
+    return (
+      <StyledPaper elevation={3}>
+        <Typography variant="h6">No player selected</Typography>
+      </StyledPaper>
+    );
   }
 
   const player = gameState.players[gameState.selectedPlayerIndex];
   const isCurrentPlayer = gameState.selectedPlayerIndex === gameState.currentPlayerIndex;
 
-  function updateField<T extends PlayerField>(
-    field: T,
-    subfield: PlayerSubField<T>,
-    increment: number,
-    linkedActionId?: string
-  ): ILogEntry {
-    const gameAction = victoryFieldToGameLogAction<T>(field, subfield, increment);
-    const log = addLogEntry(
-      gameState.selectedPlayerIndex,
-      gameAction,
-      Math.abs(increment),
-      isCorrection,
-      linkedActionId
-    );
-    setGameState((prevState) => {
-      if (!prevState) return prevState;
-      const newPlayers = [...prevState.players];
-      const player = newPlayers[gameState.selectedPlayerIndex];
-      const currentValue = player[field][subfield as keyof IPlayer[T]];
+  const updateSupplyAndVictory = (
+    gameState: IGame,
+    playerIndex: number,
+    victoryField: VictoryField,
+    increment: number
+  ): IGame | null => {
+    const updatedGame = { ...gameState };
+    const player = updatedGame.players[playerIndex];
 
-      if (typeof currentValue === 'number') {
-        (player[field][subfield as keyof IPlayer[T]] as number) = Math.max(
-          0,
-          currentValue + increment
-        );
+    // Check if there are enough cards in the supply
+    if (['estates', 'duchies', 'provinces', 'colonies', 'curses'].includes(victoryField)) {
+      const supplyCount = updatedGame.supply[victoryField as keyof IGameSupply] as number;
+      if (increment > 0 && supplyCount < increment) {
+        showAlert('Cannot Increment', `Not enough ${victoryField} in the supply.`);
+        return null;
       }
+    }
 
-      return { ...prevState, players: newPlayers };
+    // Update player's victory points
+    player.victory[victoryField] += increment;
+
+    // Update supply for cards that are in the supply
+    if (['estates', 'duchies', 'provinces', 'colonies', 'curses'].includes(victoryField)) {
+      (updatedGame.supply[victoryField as keyof IGameSupply] as number) -= increment;
+    }
+
+    return updatedGame;
+  };
+
+  const handleFieldChange = <T extends keyof PlayerFieldMap>(
+    field: T,
+    subfield: PlayerFieldMap[T],
+    increment: number,
+    linkedAction?: string
+  ): ILogEntry => {
+    let logEntry: ILogEntry | undefined;
+    setGameState((prevState) => {
+      const updatedGame =
+        field === 'victory'
+          ? updateSupplyAndVictory(
+              prevState,
+              prevState.selectedPlayerIndex,
+              subfield as VictoryField,
+              increment
+            )
+          : updatePlayerField(prevState, prevState.selectedPlayerIndex, field, subfield, increment);
+      if (!updatedGame) {
+        return prevState;
+      }
+      const action = victoryFieldToGameLogAction(field, subfield, increment);
+      logEntry = addLogEntry(
+        prevState.selectedPlayerIndex,
+        action,
+        Math.abs(increment),
+        isCorrection,
+        linkedAction
+      );
+      return updatedGame;
     });
-    return log;
-  }
+    if (!logEntry) {
+      throw new Error('Failed to create log entry');
+    }
+    return logEntry;
+  };
 
   const handleCorrectionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsCorrection(event.target.checked);
@@ -154,20 +194,25 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
             <IncrementDecrementControl
               label="Actions"
               value={player.turn.actions}
-              onIncrement={() => updateField('turn', 'actions', 1)}
-              onDecrement={() => updateField('turn', 'actions', -1)}
+              onIncrement={() => handleFieldChange('turn', 'actions', 1)}
+              onDecrement={() => {
+                const record = handleFieldChange('turn', 'actions', -1);
+                if (gameState.risingSun.greatLeaderProphecy && gameState.risingSun.prophecy === 0) {
+                  handleFieldChange('turn', 'actions', 1, record.id);
+                }
+              }}
             />
             <IncrementDecrementControl
               label="Buys"
               value={player.turn.buys}
-              onIncrement={() => updateField('turn', 'buys', 1)}
-              onDecrement={() => updateField('turn', 'buys', -1)}
+              onIncrement={() => handleFieldChange('turn', 'buys', 1)}
+              onDecrement={() => handleFieldChange('turn', 'buys', -1)}
             />
             <IncrementDecrementControl
               label="Coins"
               value={player.turn.coins}
-              onIncrement={() => updateField('turn', 'coins', 1)}
-              onDecrement={() => updateField('turn', 'coins', -1)}
+              onIncrement={() => handleFieldChange('turn', 'coins', 1)}
+              onDecrement={() => handleFieldChange('turn', 'coins', -1)}
             />
           </ColumnBox>
           {(showMats || showGlobalMats) && (
@@ -183,22 +228,22 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
                     label="Coffers"
                     value={player.mats.coffers}
                     tooltip="Spending a coffer automatically gives a coin"
-                    onIncrement={() => updateField('mats', 'coffers', 1)}
+                    onIncrement={() => handleFieldChange('mats', 'coffers', 1)}
                     onDecrement={() => {
                       // spending a coffer gives a coin
-                      const record = updateField('mats', 'coffers', -1);
-                      updateField('turn', 'coins', 1, record.id);
+                      const record = handleFieldChange('mats', 'coffers', -1);
+                      handleFieldChange('turn', 'coins', 1, record.id);
                     }}
                   />
                   <IncrementDecrementControl
                     label="Villagers"
                     value={player.mats.villagers}
                     tooltip="Spending a villager automatically gives an action"
-                    onIncrement={() => updateField('mats', 'villagers', 1)}
+                    onIncrement={() => handleFieldChange('mats', 'villagers', 1)}
                     onDecrement={() => {
                       // spending a villager gives an action
-                      const record = updateField('mats', 'villagers', -1);
-                      updateField('turn', 'actions', 1, record.id);
+                      const record = handleFieldChange('mats', 'villagers', -1);
+                      handleFieldChange('turn', 'actions', 1, record.id);
                     }}
                   />
                 </>
@@ -207,16 +252,16 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
                 <IncrementDecrementControl
                   label="Debt"
                   value={player.mats.debt}
-                  onIncrement={() => updateField('mats', 'debt', 1)}
-                  onDecrement={() => updateField('mats', 'debt', -1)}
+                  onIncrement={() => handleFieldChange('mats', 'debt', 1)}
+                  onDecrement={() => handleFieldChange('mats', 'debt', -1)}
                 />
               )}
               {gameState.options.mats.favors && (
                 <IncrementDecrementControl
                   label="Favors"
                   value={player.mats.favors}
-                  onIncrement={() => updateField('mats', 'favors', 1)}
-                  onDecrement={() => updateField('mats', 'favors', -1)}
+                  onIncrement={() => handleFieldChange('mats', 'favors', 1)}
+                  onDecrement={() => handleFieldChange('mats', 'favors', -1)}
                 />
               )}
               {showGlobalMats && (
@@ -250,47 +295,47 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
             <IncrementDecrementControl
               label="Estates"
               value={player.victory.estates}
-              onIncrement={() => updateField('victory', 'estates', 1)}
-              onDecrement={() => updateField('victory', 'estates', -1)}
+              onIncrement={() => handleFieldChange('victory', 'estates', 1)}
+              onDecrement={() => handleFieldChange('victory', 'estates', -1)}
             />
             <IncrementDecrementControl
               label="Duchies"
               value={player.victory.duchies}
-              onIncrement={() => updateField('victory', 'duchies', 1)}
-              onDecrement={() => updateField('victory', 'duchies', -1)}
+              onIncrement={() => handleFieldChange('victory', 'duchies', 1)}
+              onDecrement={() => handleFieldChange('victory', 'duchies', -1)}
             />
             <IncrementDecrementControl
               label="Provinces"
               value={player.victory.provinces}
-              onIncrement={() => updateField('victory', 'provinces', 1)}
-              onDecrement={() => updateField('victory', 'provinces', -1)}
+              onIncrement={() => handleFieldChange('victory', 'provinces', 1)}
+              onDecrement={() => handleFieldChange('victory', 'provinces', -1)}
             />
             {gameState.options.expansions.prosperity && (
               <IncrementDecrementControl
                 label="Colonies"
                 value={player.victory.colonies}
-                onIncrement={() => updateField('victory', 'colonies', 1)}
-                onDecrement={() => updateField('victory', 'colonies', -1)}
+                onIncrement={() => handleFieldChange('victory', 'colonies', 1)}
+                onDecrement={() => handleFieldChange('victory', 'colonies', -1)}
               />
             )}
             <IncrementDecrementControl
               label="Tokens"
               value={player.victory.tokens}
-              onIncrement={() => updateField('victory', 'tokens', 1)}
-              onDecrement={() => updateField('victory', 'tokens', -1)}
+              onIncrement={() => handleFieldChange('victory', 'tokens', 1)}
+              onDecrement={() => handleFieldChange('victory', 'tokens', -1)}
             />
             <IncrementDecrementControl
               label="Other"
               value={player.victory.other}
-              onIncrement={() => updateField('victory', 'other', 1)}
-              onDecrement={() => updateField('victory', 'other', -1)}
+              onIncrement={() => handleFieldChange('victory', 'other', 1)}
+              onDecrement={() => handleFieldChange('victory', 'other', -1)}
             />
             {gameState.options.curses && (
               <IncrementDecrementControl
                 label="Curses"
                 value={player.victory.curses}
-                onIncrement={() => updateField('victory', 'curses', 1)}
-                onDecrement={() => updateField('victory', 'curses', -1)}
+                onIncrement={() => handleFieldChange('victory', 'curses', 1)}
+                onDecrement={() => handleFieldChange('victory', 'curses', -1)}
               />
             )}
           </ColumnBox>
@@ -316,20 +361,20 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
           <IncrementDecrementControl
             label="Actions"
             value={player.newTurn.actions}
-            onIncrement={() => updateField('newTurn', 'actions', 1)}
-            onDecrement={() => updateField('newTurn', 'actions', -1)}
+            onIncrement={() => handleFieldChange('newTurn', 'actions', 1)}
+            onDecrement={() => handleFieldChange('newTurn', 'actions', -1)}
           />
           <IncrementDecrementControl
             label="Buys"
             value={player.newTurn.buys}
-            onIncrement={() => updateField('newTurn', 'buys', 1)}
-            onDecrement={() => updateField('newTurn', 'buys', -1)}
+            onIncrement={() => handleFieldChange('newTurn', 'buys', 1)}
+            onDecrement={() => handleFieldChange('newTurn', 'buys', -1)}
           />
           <IncrementDecrementControl
             label="Coins"
             value={player.newTurn.coins}
-            onIncrement={() => updateField('newTurn', 'coins', 1)}
-            onDecrement={() => updateField('newTurn', 'coins', -1)}
+            onIncrement={() => handleFieldChange('newTurn', 'coins', 1)}
+            onDecrement={() => handleFieldChange('newTurn', 'coins', -1)}
           />
         </Box>
       </Popover>

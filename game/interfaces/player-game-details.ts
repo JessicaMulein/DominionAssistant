@@ -1,10 +1,8 @@
-import { IGameSupply } from './game-supply';
-import { IMatDetails } from './mat-details';
-import { IPlayerGameTurnDetails } from './player-game-turn-details';
-import { IVictoryDetails } from './victory-details';
+import { IMatDetails } from '@/game/interfaces/mat-details';
+import { IPlayerGameTurnDetails } from '@/game/interfaces/player-game-turn-details';
+import { IVictoryDetails } from '@/game/interfaces/victory-details';
 
 export interface IPlayerGameDetails {
-  supply: IGameSupply;
   victory: IVictoryDetails;
   mats: IMatDetails;
   startActionsPerTurn: number;

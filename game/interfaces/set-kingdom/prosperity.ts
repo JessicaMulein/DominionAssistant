@@ -1,6 +1,6 @@
 import {
   COLONY_TOTAL_COUNT,
-  MAX_PLAYERS,
+  COLONY_TOTAL_COUNT_2P,
   MIN_PLAYERS,
   NOT_PRESENT,
   PLATINUM_TOTAL_COUNT,
@@ -8,29 +8,21 @@ import {
 import { IBaseKingdomSet } from '@/game/interfaces/set-kingdom/_base_set';
 
 export interface IProsperityKingdom extends IBaseKingdomSet {
-  colony: number;
-  platinum: number;
+  colonies: number;
+  platinums: number;
 }
 
 export function computeStartingSupply(numPlayers: number): IProsperityKingdom {
   if (numPlayers < MIN_PLAYERS) {
     throw new Error(`At least ${MIN_PLAYERS} players are required`);
-  } else if (numPlayers === 2) {
-    return {
-      colony: 8,
-      platinum: PLATINUM_TOTAL_COUNT,
-    };
-  } else if (numPlayers <= MAX_PLAYERS) {
-    return {
-      colony: COLONY_TOTAL_COUNT,
-      platinum: PLATINUM_TOTAL_COUNT,
-    };
-  } else {
-    throw new Error('Invalid number of players');
   }
+  return {
+    colonies: numPlayers === 2 ? COLONY_TOTAL_COUNT_2P : COLONY_TOTAL_COUNT,
+    platinums: PLATINUM_TOTAL_COUNT,
+  };
 }
 
 export const NullSet: IProsperityKingdom = {
-  colony: NOT_PRESENT,
-  platinum: NOT_PRESENT,
+  colonies: NOT_PRESENT,
+  platinums: NOT_PRESENT,
 };

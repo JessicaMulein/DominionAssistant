@@ -1,4 +1,4 @@
-import { IMatsEnabled } from './mats-enabled';
+import { IMatsEnabled } from '@/game/interfaces/mats-enabled';
 
 export interface IGameOptions {
   curses: boolean;

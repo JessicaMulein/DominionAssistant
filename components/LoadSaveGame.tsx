@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { useGameContext } from '@/components/GameContext';
-import { saveGame, loadGame, getSavedGamesList, deleteSavedGame } from '@/game/dominion-lib';
+import {
+  saveGame,
+  loadGame,
+  getSavedGamesList,
+  deleteSavedGame,
+  loadGameAddLog,
+  addLogEntry,
+} from '@/game/dominion-lib';
 import { SavedGameMetadata } from '@/game/interfaces/saved-game-metadata';
 import {
   Box,
@@ -20,6 +28,9 @@ import {
 } from '@mui/material';
 import { ArrowRight as ArrowRightIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { CurrentStep } from '@/game/enumerations/current-step';
+import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
+import { ILogEntry } from '@/game/interfaces/log-entry';
+import { NO_PLAYER } from '@/game/constants';
 
 const LoadSaveGame: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -28,6 +39,27 @@ const LoadSaveGame: React.FC = () => {
   const [savedGames, setSavedGames] = useState<SavedGameMetadata[]>([]);
   const [saveName, setSaveName] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+
+  /**
+   * Add a log entry to the game log.
+   * @param playerIndex
+   * @param action
+   * @param count
+   * @param correction If true, this log entry is a correction to a previous entry.
+   * @param linkedAction If provided, an ID of a linked action. Some actions are part of a chain and should be linked for undo functionality.
+   * @returns
+   */
+  const addLogEntrySetGameState = (): ILogEntry => {
+    let newLog: ILogEntry | undefined;
+    setGameState((prevGame) => {
+      newLog = addLogEntry(prevGame, NO_PLAYER, GameLogActionWithCount.LOAD_GAME);
+      return prevGame;
+    });
+    if (!newLog) {
+      throw new Error('Failed to add log entry');
+    }
+    return newLog;
+  };
 
   useEffect(() => {
     loadSavedGamesList();
@@ -46,6 +78,7 @@ const LoadSaveGame: React.FC = () => {
       } else {
         // If no game is selected, save as a new game
         await saveGame(gameState, saveName);
+        addLogEntrySetGameState();
         setSaveName('');
         loadSavedGamesList();
       }

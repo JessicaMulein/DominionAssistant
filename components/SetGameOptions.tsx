@@ -1,14 +1,9 @@
 import React from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { Box, Typography, Checkbox, Tooltip, Button } from '@mui/material';
 import { useGameContext } from '@/components/GameContext';
 import { OptionField, OptionSubField } from '@/game/types';
 import { IGame } from '@/game/interfaces/game';
-import { calculateInitialSupply, distributeInitialSupply } from '@/game/dominion-lib';
-import { calculateInitialSunTokens } from '@/game/interfaces/set-mats/prophecy';
-import { CurrentStep } from '@/game/enumerations/current-step';
-import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
-import { NO_PLAYER } from '@/game/constants';
+import { NewGameState } from '@/game/dominion-lib';
 
 interface SetGameOptionsProps {
   startGame: () => void;
@@ -38,33 +33,7 @@ const SetGameOptions: React.FC<SetGameOptionsProps> = ({ startGame }) => {
 
   const handleStartGame = () => {
     setGameState((prevState) => {
-      const initialSupply = calculateInitialSupply(
-        prevState.players.length,
-        prevState.options.curses,
-        prevState.options.expansions.prosperity
-      );
-      const updatedGame = distributeInitialSupply({
-        ...prevState,
-        supply: initialSupply,
-      });
-
-      return {
-        ...updatedGame,
-        currentTurn: 1,
-        currentStep: CurrentStep.GameScreen,
-        risingSun: {
-          prophecy: calculateInitialSunTokens(updatedGame.players.length).suns,
-          greatLeaderProphecy: updatedGame.risingSun.greatLeaderProphecy,
-        },
-        log: [
-          {
-            id: uuidv4(),
-            timestamp: new Date(),
-            action: GameLogActionWithCount.START_GAME,
-            playerIndex: NO_PLAYER,
-          },
-        ],
-      };
+      return NewGameState(prevState);
     });
 
     startGame();

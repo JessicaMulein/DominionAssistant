@@ -1,5 +1,4 @@
-import React from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useEffect, useState } from 'react';
 import AddPlayerNames from '@/components/AddPlayerNames';
 import SelectFirstPlayer from '@/components/SelectFirstPlayer';
 import SetGameOptions from '@/components/SetGameOptions';
@@ -7,9 +6,20 @@ import GameScreen from '@/components/GameScreen';
 import EndGame from '@/components/EndGame';
 import { ILogEntry } from '@/game/interfaces/log-entry';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
-import { EmptyGameState, useGameContext } from '@/components/GameContext';
+import { useGameContext } from '@/components/GameContext';
 import { CurrentStep } from '@/game/enumerations/current-step';
 import { NO_PLAYER } from '@/game/constants';
+import {
+  addLogEntry,
+  canUndoAction,
+  cleanLogTurns,
+  EmptyGameState,
+  StepTransitions,
+  undoAction,
+} from '@/game/dominion-lib';
+import { IPlayerGameTurnDetails } from '@/game/interfaces/player-game-turn-details';
+import { AlertProvider, useAlert } from '@/components/AlertContext';
+import AlertDialog from '@/components/AlertDialog';
 
 interface DominionAssistantProps {
   route: unknown;
@@ -18,34 +28,29 @@ interface DominionAssistantProps {
 
 const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation }) => {
   const { gameState, setGameState } = useGameContext();
+  const [canUndo, setCanUndo] = useState(false);
+  const { showAlert } = useAlert();
+
+  useEffect(() => {
+    setCanUndo(canUndoAction(gameState, gameState.log.length - 1));
+  }, [gameState.log]);
+
+  const undoLastAction = () => {
+    setGameState((prevGame) => {
+      const { game, success } = undoAction(prevGame, prevGame.log.length - 1);
+      if (!success) {
+        showAlert('Undo Failed', 'Unable to undo the last action.');
+        return prevGame;
+      }
+      return game;
+    });
+  };
 
   const nextStep = () => {
-    setGameState((prevState) => {
-      let nextStep: CurrentStep;
-
-      switch (prevState.currentStep) {
-        case CurrentStep.AddPlayerNames:
-          nextStep = CurrentStep.SelectFirstPlayer;
-          break;
-        case CurrentStep.SelectFirstPlayer:
-          nextStep = CurrentStep.SetGameOptions;
-          break;
-        case CurrentStep.SetGameOptions:
-          nextStep = CurrentStep.GameScreen;
-          break;
-        case CurrentStep.GameScreen:
-          nextStep = CurrentStep.EndGame;
-          break;
-        case CurrentStep.EndGame:
-        default:
-          nextStep = prevState.currentStep; // No change if we're already at the end
-      }
-
-      return {
-        ...prevState,
-        currentStep: nextStep,
-      };
-    });
+    setGameState((prevState) => ({
+      ...prevState,
+      currentStep: StepTransitions[prevState.currentStep] || prevState.currentStep,
+    }));
   };
 
   /**
@@ -57,31 +62,30 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
    * @param linkedAction If provided, an ID of a linked action. Some actions are part of a chain and should be linked for undo functionality.
    * @returns
    */
-  const addLogEntry = (
+  const addLogEntrySetGameState = (
     playerIndex: number,
     action: GameLogActionWithCount,
     count?: number,
     correction?: boolean,
-    linkedAction?: string
+    linkedAction?: string,
+    playerTurnDetails?: IPlayerGameTurnDetails[]
   ): ILogEntry => {
-    const playerName = playerIndex > -1 ? gameState.players[playerIndex].name : undefined;
-    const newLog: ILogEntry = {
-      id: uuidv4(),
-      timestamp: new Date(),
-      action,
-      playerIndex,
-      playerName,
-      count,
-      correction,
-      linkedAction,
-    };
+    let newLog: ILogEntry | undefined;
     setGameState((prevGame) => {
-      if (!prevGame) return prevGame;
-      return {
-        ...prevGame,
-        log: [...prevGame.log, newLog],
-      };
+      newLog = addLogEntry(
+        prevGame,
+        playerIndex,
+        action,
+        count,
+        correction,
+        linkedAction,
+        playerTurnDetails
+      );
+      return prevGame;
     });
+    if (!newLog) {
+      throw new Error('Failed to add log entry');
+    }
     return newLog;
   };
 
@@ -97,7 +101,14 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
   };
 
   const nextTurn = () => {
-    addLogEntry(NO_PLAYER, GameLogActionWithCount.NEXT_TURN);
+    addLogEntrySetGameState(
+      NO_PLAYER,
+      GameLogActionWithCount.NEXT_TURN,
+      undefined,
+      undefined,
+      undefined,
+      gameState.players.map((player) => player.turn)
+    );
     setGameState((prevGame) => {
       const nextPlayerIndex = (prevGame.currentPlayerIndex + 1) % prevGame.players.length;
       const updatedPlayers = prevGame.players.map((player, index) => {
@@ -110,19 +121,22 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
         return player;
       });
 
+      const cleanedLog = cleanLogTurns(prevGame.log);
+
       return {
         ...prevGame,
         currentPlayerIndex: nextPlayerIndex,
         selectedPlayerIndex: nextPlayerIndex,
         currentTurn: (prevGame.currentTurn || 0) + 1,
         players: updatedPlayers,
+        log: cleanedLog,
       };
     });
   };
 
   const endGame = () => {
     setGameState((prevState) => {
-      addLogEntry(NO_PLAYER, GameLogActionWithCount.END_GAME);
+      addLogEntrySetGameState(NO_PLAYER, GameLogActionWithCount.END_GAME);
 
       return {
         ...prevState,
@@ -138,185 +152,33 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
     });
   };
 
-  /**
-   * A list of action that can be undone.
-   */
-  const canUndo = Object.values(GameLogActionWithCount).filter((action) =>
-    [
-      GameLogActionWithCount.START_GAME,
-      GameLogActionWithCount.END_GAME,
-      GameLogActionWithCount.NEXT_TURN,
-    ].includes(action)
-  );
-
-  const undoLastAction = () => {
-    setGameState((prevGame) => {
-      if (!prevGame || prevGame.log.length === 0) return prevGame;
-
-      const lastLog = prevGame.log[prevGame.log.length - 1];
-      const linkedLogs = prevGame.log.filter((log) => log.linkedAction === lastLog.id);
-      const logs = [lastLog, ...linkedLogs];
-      logs.map((log) => {
-        if (!canUndo.includes(log.action)) {
-          throw new Error(`Cannot undo action ${log.action}`);
-        }
-      });
-
-      const newPlayers = [...prevGame.players];
-
-      logs.forEach((log) => {
-        const player = newPlayers[log.playerIndex];
-        // Reverse the action
-        if (log.count && player) {
-          switch (lastLog.action) {
-            case GameLogActionWithCount.ADD_ACTIONS:
-              player.turn.actions -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_ACTIONS:
-              player.turn.actions += log.count;
-              break;
-            case GameLogActionWithCount.ADD_BUYS:
-              player.turn.buys -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_BUYS:
-              player.turn.buys += log.count;
-              break;
-            case GameLogActionWithCount.ADD_COINS:
-              player.turn.coins -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_COINS:
-              player.turn.coins += log.count;
-              break;
-            case GameLogActionWithCount.ADD_COFFERS:
-              player.mats.coffers -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_COFFERS:
-              player.mats.coffers += log.count;
-              break;
-            case GameLogActionWithCount.ADD_VILLAGERS:
-              player.mats.villagers -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_VILLAGERS:
-              player.mats.villagers += log.count;
-              break;
-            case GameLogActionWithCount.ADD_DEBT:
-              player.mats.debt -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_DEBT:
-              player.mats.debt += log.count;
-              break;
-            case GameLogActionWithCount.ADD_FAVORS:
-              player.mats.favors -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_FAVORS:
-              player.mats.favors += log.count;
-              break;
-            case GameLogActionWithCount.ADD_ESTATES:
-              player.victory.estates -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_ESTATES:
-              player.victory.estates += log.count;
-              break;
-            case GameLogActionWithCount.ADD_DUCHIES:
-              player.victory.duchies -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_DUCHIES:
-              player.victory.duchies += log.count;
-              break;
-            case GameLogActionWithCount.ADD_PROVINCES:
-              player.victory.provinces -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_PROVINCES:
-              player.victory.provinces += log.count;
-              break;
-            case GameLogActionWithCount.ADD_COLONIES:
-              player.victory.colonies -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_COLONIES:
-              player.victory.colonies += log.count;
-              break;
-            case GameLogActionWithCount.ADD_CURSES:
-              player.victory.curses -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_CURSES:
-              player.victory.curses += log.count;
-              break;
-            case GameLogActionWithCount.ADD_VP_TOKENS:
-              player.victory.tokens -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_VP_TOKENS:
-              player.victory.tokens += log.count;
-              break;
-            case GameLogActionWithCount.ADD_OTHER_VP:
-              player.victory.other -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_OTHER_VP:
-              player.victory.other += log.count;
-              break;
-            case GameLogActionWithCount.ADD_NEXT_TURN_ACTIONS:
-              player.newTurn.actions -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_NEXT_TURN_ACTIONS:
-              player.newTurn.actions += log.count;
-              break;
-            case GameLogActionWithCount.ADD_NEXT_TURN_BUYS:
-              player.newTurn.buys -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_NEXT_TURN_BUYS:
-              player.newTurn.buys += log.count;
-              break;
-            case GameLogActionWithCount.ADD_NEXT_TURN_COINS:
-              player.newTurn.coins -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_NEXT_TURN_COINS:
-              player.newTurn.coins += log.count;
-              break;
-            case GameLogActionWithCount.ADD_PROPHECY:
-              prevGame.risingSun.prophecy -= log.count;
-              break;
-            case GameLogActionWithCount.REMOVE_PROPHECY:
-              prevGame.risingSun.prophecy += log.count;
-              break;
-            default:
-              throw new Error(`Can't undo log action: ${lastLog.action}`);
-          }
-        }
-      });
-
-      // Remove the last log entry and any linked entries
-      const newLog = prevGame.log.filter(
-        (log) => log.id !== lastLog.id && log.linkedAction !== lastLog.id
-      );
-
-      return {
-        ...prevGame,
-        players: newPlayers,
-        log: newLog,
-      };
-    });
-  };
-
   switch (gameState.currentStep) {
-    case 1:
+    case CurrentStep.AddPlayerNames:
       return <AddPlayerNames nextStep={nextStep} />;
-    case 2:
+    case CurrentStep.SelectFirstPlayer:
       return <SelectFirstPlayer nextStep={nextStep} />;
-    case 3:
+    case CurrentStep.SetGameOptions:
       return <SetGameOptions startGame={startGame} />;
-    case 4:
+    case CurrentStep.GameScreen:
       return (
         <GameScreen
           nextTurn={nextTurn}
           endGame={endGame}
-          addLogEntry={addLogEntry}
+          addLogEntry={addLogEntrySetGameState}
           undoLastAction={undoLastAction}
         />
       );
-    case 5:
+    case CurrentStep.EndGame:
       return <EndGame game={gameState} onNewGame={resetGame} />;
     default:
       return null;
   }
 };
+const DominionAssistantWithAlert: React.FC<DominionAssistantProps> = (props) => (
+  <AlertProvider>
+    <DominionAssistant {...props} />
+    <AlertDialog />
+  </AlertProvider>
+);
 
-export default DominionAssistant;
+export default DominionAssistantWithAlert;
