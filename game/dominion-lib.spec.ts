@@ -1,4 +1,9 @@
-import { calculateVictoryPoints } from '@/game/dominion-lib';
+import { faker } from '@faker-js/faker';
+import {
+  calculateVictoryPoints,
+  newPlayer,
+  victoryFieldToGameLogAction,
+} from '@/game/dominion-lib';
 import { IPlayer } from '@/game/interfaces/player';
 import {
   ESTATE_VP,
@@ -18,6 +23,8 @@ import { HAND_STARTING_ESTATES, HAND_STARTING_COPPERS } from '@/game/constants';
 import { IMatsEnabled } from './interfaces/mats-enabled';
 import { IExpansionsEnabled } from './interfaces/expansions-enabled';
 import { CurrentStep } from './enumerations/current-step';
+import { InvalidFieldError } from './errors/invalid-field';
+import { GameLogActionWithCount } from './enumerations/game-log-action-with-count';
 
 describe('calculateVictoryPoints', () => {
   const createMockPlayer = (victory: Partial<IPlayer['victory']>): IPlayer => ({
@@ -170,7 +177,7 @@ describe('calculateInitialSupply', () => {
   });
 });
 
-function createMockGame(playerCount: number) {
+function createMockGame(playerCount: number): IGame {
   const options: IGameOptions = {
     curses: true,
     expansions: { prosperity: false, renaissance: false, risingSun: false } as IExpansionsEnabled,
@@ -184,9 +191,20 @@ function createMockGame(playerCount: number) {
   return {
     players: Array(playerCount)
       .fill(null)
-      .map(() => ({ victory: {} })),
+      .map(() => newPlayer(faker.person.firstName())),
     supply,
     options,
+    risingSun: {
+      prophecy: NOT_PRESENT,
+      greatLeaderProphecy: false,
+    },
+    currentTurn: 1,
+    currentPlayerIndex: 0,
+    firstPlayerIndex: 0,
+    selectedPlayerIndex: 0,
+    log: [],
+    currentStep: CurrentStep.GameScreen,
+    setsRequired: 1,
   };
 }
 
@@ -235,7 +253,16 @@ describe('distributeInitialSupply', () => {
     expect(() =>
       calculateInitialSupply(1, {
         curses: true,
-        expansions: { prosperity: false, renaissance: false, risingSun: false },
+        expansions: {
+          prosperity: false,
+          renaissance: false,
+          risingSun: false,
+        } as IExpansionsEnabled,
+        mats: {
+          coffersVillagers: false,
+          debt: false,
+          favors: false,
+        } as IMatsEnabled,
       })
     ).toThrow(MinPlayersError);
   });
@@ -289,5 +316,181 @@ describe('distributeInitialSupply', () => {
 
     expect(updatedGame.supply.silvers).toBe(initialSupply.silvers);
     expect(updatedGame.supply.golds).toBe(initialSupply.golds);
+  });
+});
+
+describe('victoryFieldToGameLogAction', () => {
+  it('should return ADD_ACTIONS for turn actions increment', () => {
+    expect(victoryFieldToGameLogAction('turn', 'actions', 1)).toBe(
+      GameLogActionWithCount.ADD_ACTIONS
+    );
+  });
+
+  it('should return REMOVE_ACTIONS for turn actions decrement', () => {
+    expect(victoryFieldToGameLogAction('turn', 'actions', -1)).toBe(
+      GameLogActionWithCount.REMOVE_ACTIONS
+    );
+  });
+
+  it('should return ADD_BUYS for turn buys increment', () => {
+    expect(victoryFieldToGameLogAction('turn', 'buys', 1)).toBe(GameLogActionWithCount.ADD_BUYS);
+  });
+
+  it('should return REMOVE_BUYS for turn buys decrement', () => {
+    expect(victoryFieldToGameLogAction('turn', 'buys', -1)).toBe(
+      GameLogActionWithCount.REMOVE_BUYS
+    );
+  });
+
+  it('should return ADD_COINS for turn coins increment', () => {
+    expect(victoryFieldToGameLogAction('turn', 'coins', 1)).toBe(GameLogActionWithCount.ADD_COINS);
+  });
+
+  it('should return REMOVE_COINS for turn coins decrement', () => {
+    expect(victoryFieldToGameLogAction('turn', 'coins', -1)).toBe(
+      GameLogActionWithCount.REMOVE_COINS
+    );
+  });
+
+  it('should return ADD_COFFERS for mats coffers increment', () => {
+    expect(victoryFieldToGameLogAction('mats', 'coffers', 1)).toBe(
+      GameLogActionWithCount.ADD_COFFERS
+    );
+  });
+
+  it('should return REMOVE_COFFERS for mats coffers decrement', () => {
+    expect(victoryFieldToGameLogAction('mats', 'coffers', -1)).toBe(
+      GameLogActionWithCount.REMOVE_COFFERS
+    );
+  });
+
+  it('should return ADD_VILLAGERS for mats villagers increment', () => {
+    expect(victoryFieldToGameLogAction('mats', 'villagers', 1)).toBe(
+      GameLogActionWithCount.ADD_VILLAGERS
+    );
+  });
+
+  it('should return REMOVE_VILLAGERS for mats villagers decrement', () => {
+    expect(victoryFieldToGameLogAction('mats', 'villagers', -1)).toBe(
+      GameLogActionWithCount.REMOVE_VILLAGERS
+    );
+  });
+
+  it('should return ADD_DEBT for mats debt increment', () => {
+    expect(victoryFieldToGameLogAction('mats', 'debt', 1)).toBe(GameLogActionWithCount.ADD_DEBT);
+  });
+
+  it('should return REMOVE_DEBT for mats debt decrement', () => {
+    expect(victoryFieldToGameLogAction('mats', 'debt', -1)).toBe(
+      GameLogActionWithCount.REMOVE_DEBT
+    );
+  });
+
+  it('should return ADD_FAVORS for mats favors increment', () => {
+    expect(victoryFieldToGameLogAction('mats', 'favors', 1)).toBe(
+      GameLogActionWithCount.ADD_FAVORS
+    );
+  });
+
+  it('should return REMOVE_FAVORS for mats favors decrement', () => {
+    expect(victoryFieldToGameLogAction('mats', 'favors', -1)).toBe(
+      GameLogActionWithCount.REMOVE_FAVORS
+    );
+  });
+
+  it('should return ADD_CURSES for victory curses increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'curses', 1)).toBe(
+      GameLogActionWithCount.ADD_CURSES
+    );
+  });
+
+  it('should return REMOVE_CURSES for victory curses decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'curses', -1)).toBe(
+      GameLogActionWithCount.REMOVE_CURSES
+    );
+  });
+
+  it('should return ADD_ESTATES for victory estates increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'estates', 1)).toBe(
+      GameLogActionWithCount.ADD_ESTATES
+    );
+  });
+
+  it('should return REMOVE_ESTATES for victory estates decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'estates', -1)).toBe(
+      GameLogActionWithCount.REMOVE_ESTATES
+    );
+  });
+
+  it('should return ADD_DUCHIES for victory duchies increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'duchies', 1)).toBe(
+      GameLogActionWithCount.ADD_DUCHIES
+    );
+  });
+
+  it('should return REMOVE_DUCHIES for victory duchies decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'duchies', -1)).toBe(
+      GameLogActionWithCount.REMOVE_DUCHIES
+    );
+  });
+
+  it('should return ADD_PROVINCES for victory provinces increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'provinces', 1)).toBe(
+      GameLogActionWithCount.ADD_PROVINCES
+    );
+  });
+
+  it('should return REMOVE_PROVINCES for victory provinces decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'provinces', -1)).toBe(
+      GameLogActionWithCount.REMOVE_PROVINCES
+    );
+  });
+
+  it('should return ADD_COLONIES for victory colonies increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'colonies', 1)).toBe(
+      GameLogActionWithCount.ADD_COLONIES
+    );
+  });
+
+  it('should return REMOVE_COLONIES for victory colonies decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'colonies', -1)).toBe(
+      GameLogActionWithCount.REMOVE_COLONIES
+    );
+  });
+
+  it('should return ADD_VP_TOKENS for victory tokens increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'tokens', 1)).toBe(
+      GameLogActionWithCount.ADD_VP_TOKENS
+    );
+  });
+
+  it('should return REMOVE_VP_TOKENS for victory tokens decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'tokens', -1)).toBe(
+      GameLogActionWithCount.REMOVE_VP_TOKENS
+    );
+  });
+
+  it('should return ADD_OTHER_VP for victory other increment', () => {
+    expect(victoryFieldToGameLogAction('victory', 'other', 1)).toBe(
+      GameLogActionWithCount.ADD_OTHER_VP
+    );
+  });
+
+  it('should return REMOVE_OTHER_VP for victory other decrement', () => {
+    expect(victoryFieldToGameLogAction('victory', 'other', -1)).toBe(
+      GameLogActionWithCount.REMOVE_OTHER_VP
+    );
+  });
+
+  it('should throw InvalidFieldError for invalid field', () => {
+    expect(() => victoryFieldToGameLogAction('invalidField' as any, 'actions', 1)).toThrow(
+      InvalidFieldError
+    );
+  });
+
+  it('should throw InvalidFieldError for invalid subfield', () => {
+    expect(() => victoryFieldToGameLogAction('turn', 'invalidSubfield' as any, 1)).toThrow(
+      InvalidFieldError
+    );
   });
 });
