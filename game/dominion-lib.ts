@@ -37,14 +37,6 @@ import { EmptyLogError } from '@/game/errors/empty-log';
 import { InvalidLogStartGameError } from '@/game/errors/invalid-log-start-game';
 import { InvalidLogSaveGameError } from '@/game/errors/invalid-log-save-game';
 
-export const StepTransitions: Record<CurrentStep, CurrentStep> = {
-  [CurrentStep.AddPlayerNames]: CurrentStep.SelectFirstPlayer,
-  [CurrentStep.SelectFirstPlayer]: CurrentStep.SetGameOptions,
-  [CurrentStep.SetGameOptions]: CurrentStep.GameScreen,
-  [CurrentStep.GameScreen]: CurrentStep.EndGame,
-  [CurrentStep.EndGame]: CurrentStep.EndGame,
-};
-
 /**
  * Calculate the victory points for a player.
  * @param player - The player
@@ -94,6 +86,15 @@ export function calculateInitialSupply(numPlayers: number, options: IGameOptions
 export function distributeInitialSupply(game: IGame): IGame {
   const updatedGame = { ...game };
   const playerCount = updatedGame.players.length;
+
+  // If there are no players, return the game as is
+  if (playerCount === 0) {
+    return updatedGame;
+  }
+
+  /* do not subtract estates from the supply- the supply should
+   * start with the specified number
+   */
   updatedGame.players = updatedGame.players.map((player) => ({
     ...player,
     victory: {
@@ -101,7 +102,11 @@ export function distributeInitialSupply(game: IGame): IGame {
       estates: HAND_STARTING_ESTATES,
     },
   }));
-  updatedGame.supply.coppers -= playerCount * HAND_STARTING_COPPERS;
+  // Subtract the distributed coppers from the supply
+  updatedGame.supply = {
+    ...updatedGame.supply,
+    coppers: updatedGame.supply.coppers - playerCount * HAND_STARTING_COPPERS,
+  };
   return updatedGame;
 }
 

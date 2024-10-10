@@ -1,3 +1,4 @@
+import { CurrentStep } from './enumerations/current-step';
 import { GameLogActionWithCount } from './enumerations/game-log-action-with-count';
 import { IGameSupply } from './interfaces/game-supply';
 import { IMatDetails } from './interfaces/mat-details';
@@ -41,55 +42,63 @@ export const COLONY_VP = 10;
  * Default (zero) values for the game supply.
  */
 export const EmptyGameSupply: IGameSupply = {
-    coppers: 0,
-    silvers: 0,
-    golds: 0,
-    platinums: 0,
-    estates: 0,
-    duchies: 0,
-    provinces: 0,
-    colonies: 0,
-    curses: 0,
+  coppers: 0,
+  silvers: 0,
+  golds: 0,
+  platinums: 0,
+  estates: 0,
+  duchies: 0,
+  provinces: 0,
+  colonies: 0,
+  curses: 0,
 };
 
 /**
  * Default (zero) values for the mat details.
  */
 export const EmptyMatDetails: IMatDetails = {
-    villagers: 0,
-    coffers: 0,
-    debt: 0,
-    favors: 0,
+  villagers: 0,
+  coffers: 0,
+  debt: 0,
+  favors: 0,
 };
 
 /**
  * Default (zero) values for the player game turn details.
  */
 export const DefaultTurnDetails: IPlayerGameTurnDetails = {
-    actions: 1,
-    buys: 1,
-    coins: 0,
+  actions: 1,
+  buys: 1,
+  coins: 0,
 };
 
 /**
  * Default (zero) values for the victory details.
  */
 export const EmptyVictoryDetails: IVictoryDetails = {
-    tokens: 0,
-    estates: 0,
-    duchies: 0,
-    provinces: 0,
-    colonies: 0,
-    other: 0,
-    curses: 0,
+  tokens: 0,
+  estates: 0,
+  duchies: 0,
+  provinces: 0,
+  colonies: 0,
+  other: 0,
+  curses: 0,
 };
 
 /**
  * A list of actions that do not affect player state.
  */
 export const NoPlayerActions = [
-    GameLogActionWithCount.START_GAME,
-    GameLogActionWithCount.END_GAME,
-    GameLogActionWithCount.SAVE_GAME,
-    GameLogActionWithCount.LOAD_GAME,
+  GameLogActionWithCount.START_GAME,
+  GameLogActionWithCount.END_GAME,
+  GameLogActionWithCount.SAVE_GAME,
+  GameLogActionWithCount.LOAD_GAME,
 ];
+
+export const StepTransitions: Record<CurrentStep, CurrentStep> = {
+  [CurrentStep.AddPlayerNames]: CurrentStep.SelectFirstPlayer,
+  [CurrentStep.SelectFirstPlayer]: CurrentStep.SetGameOptions,
+  [CurrentStep.SetGameOptions]: CurrentStep.GameScreen,
+  [CurrentStep.GameScreen]: CurrentStep.EndGame,
+  [CurrentStep.EndGame]: CurrentStep.EndGame,
+};

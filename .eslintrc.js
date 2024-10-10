@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 const typescript = require('@typescript-eslint/eslint-plugin');
 const reactPlugin = require('eslint-plugin-react');
 const reactHooksPlugin = require('eslint-plugin-react-hooks');
-const prettierPlugin = require('eslint-plugin-prettier');
 const prettierConfig = require('eslint-config-prettier');
 
 module.exports = {
@@ -19,6 +19,7 @@ module.exports = {
     'react/prop-types': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
+    indent: ['error', 2], // Ensure ESLint uses the same tab width as Prettier
   },
   settings: {
     react: {
