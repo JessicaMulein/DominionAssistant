@@ -14,6 +14,7 @@ import { PlayerFieldMap, VictoryField } from '@/game/types';
 import { IGame } from '@/game/interfaces/game';
 import { IGameSupply } from '@/game/interfaces/game-supply';
 import { useAlert } from '@/components/AlertContext';
+import { FailedAddLogEntryError } from '@/game/errors/failed-add-log';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: 5,
@@ -62,35 +63,6 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   const player = gameState.players[gameState.selectedPlayerIndex];
   const isCurrentPlayer = gameState.selectedPlayerIndex === gameState.currentPlayerIndex;
 
-  const updateSupplyAndVictory = (
-    gameState: IGame,
-    playerIndex: number,
-    victoryField: VictoryField,
-    increment: number
-  ): IGame | null => {
-    const updatedGame = { ...gameState };
-    const player = updatedGame.players[playerIndex];
-
-    // Check if there are enough cards in the supply
-    if (['estates', 'duchies', 'provinces', 'colonies', 'curses'].includes(victoryField)) {
-      const supplyCount = updatedGame.supply[victoryField as keyof IGameSupply] as number;
-      if (increment > 0 && supplyCount < increment) {
-        showAlert('Cannot Increment', `Not enough ${victoryField} in the supply.`);
-        return null;
-      }
-    }
-
-    // Update player's victory points
-    player.victory[victoryField] += increment;
-
-    // Update supply for cards that are in the supply
-    if (['estates', 'duchies', 'provinces', 'colonies', 'curses'].includes(victoryField)) {
-      (updatedGame.supply[victoryField as keyof IGameSupply] as number) -= increment;
-    }
-
-    return updatedGame;
-  };
-
   const handleFieldChange = <T extends keyof PlayerFieldMap>(
     field: T,
     subfield: PlayerFieldMap[T],
@@ -99,30 +71,37 @@ const Player: React.FC<PlayerProps> = ({ addLogEntry }) => {
   ): ILogEntry => {
     let logEntry: ILogEntry | undefined;
     setGameState((prevState) => {
-      const updatedGame =
-        field === 'victory'
-          ? updateSupplyAndVictory(
-              prevState,
-              prevState.selectedPlayerIndex,
-              subfield as VictoryField,
-              increment
-            )
-          : updatePlayerField(prevState, prevState.selectedPlayerIndex, field, subfield, increment);
-      if (!updatedGame) {
+      try {
+        const updatedGame = updatePlayerField(
+          prevState,
+          prevState.selectedPlayerIndex,
+          field,
+          subfield,
+          increment
+        );
+        if (!updatedGame) {
+          return prevState;
+        }
+        const action = victoryFieldToGameLogAction(field, subfield, increment);
+        logEntry = addLogEntry(
+          prevState.selectedPlayerIndex,
+          action,
+          Math.abs(increment),
+          isCorrection,
+          linkedAction
+        );
+        return updatedGame;
+      } catch (error) {
+        if (error instanceof Error) {
+          showAlert('Could not increment', error.message);
+        } else {
+          showAlert('Could not increment', 'Unknown error');
+        }
         return prevState;
       }
-      const action = victoryFieldToGameLogAction(field, subfield, increment);
-      logEntry = addLogEntry(
-        prevState.selectedPlayerIndex,
-        action,
-        Math.abs(increment),
-        isCorrection,
-        linkedAction
-      );
-      return updatedGame;
     });
     if (!logEntry) {
-      throw new Error('Failed to create log entry');
+      throw new FailedAddLogEntryError();
     }
     return logEntry;
   };

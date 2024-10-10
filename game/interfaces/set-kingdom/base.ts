@@ -1,4 +1,6 @@
 import { MAX_PLAYERS, MIN_PLAYERS, NOT_PRESENT } from '@/game/constants';
+import { MaxPlayersError } from '@/game/errors/max-players';
+import { MinPlayersError } from '@/game/errors/min-players';
 import { IBaseKingdomSet } from '@/game/interfaces/set-kingdom/_base_set';
 
 export interface IBaseKingdom extends IBaseKingdomSet {
@@ -13,10 +15,10 @@ export interface IBaseKingdom extends IBaseKingdomSet {
 
 export function computeStartingSupply(numPlayers: number, curses: boolean): IBaseKingdom {
   if (numPlayers < MIN_PLAYERS) {
-    throw new Error(`At least ${MIN_PLAYERS} players are required`);
+    throw new MinPlayersError();
   }
   if (numPlayers > MAX_PLAYERS) {
-    throw new Error(`Maximum ${MAX_PLAYERS} players are allowed`);
+    throw new MaxPlayersError();
   }
   return {
     estates: numPlayers <= 2 ? 8 : 12,

@@ -5,6 +5,7 @@ import {
   NOT_PRESENT,
   PLATINUM_TOTAL_COUNT,
 } from '@/game/constants';
+import { MinPlayersError } from '@/game/errors/min-players';
 import { IBaseKingdomSet } from '@/game/interfaces/set-kingdom/_base_set';
 
 export interface IProsperityKingdom extends IBaseKingdomSet {
@@ -14,7 +15,7 @@ export interface IProsperityKingdom extends IBaseKingdomSet {
 
 export function computeStartingSupply(numPlayers: number): IProsperityKingdom {
   if (numPlayers < MIN_PLAYERS) {
-    throw new Error(`At least ${MIN_PLAYERS} players are required`);
+    throw new MinPlayersError();
   }
   return {
     colonies: numPlayers === 2 ? COLONY_TOTAL_COUNT_2P : COLONY_TOTAL_COUNT,

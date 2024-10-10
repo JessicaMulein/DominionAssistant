@@ -19,6 +19,7 @@ import {
 import { IPlayerGameTurnDetails } from '@/game/interfaces/player-game-turn-details';
 import { AlertProvider, useAlert } from '@/components/AlertContext';
 import AlertDialog from '@/components/AlertDialog';
+import { FailedAddLogEntryError } from '@/game/errors/failed-add-log';
 
 interface DominionAssistantProps {
   route: unknown;
@@ -83,7 +84,7 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
       return prevGame;
     });
     if (!newLog) {
-      throw new Error('Failed to add log entry');
+      throw new FailedAddLogEntryError();
     }
     return newLog;
   };

@@ -6,17 +6,13 @@ import { IGameSupply } from '@/game/interfaces/game-supply';
 import { ILogEntry } from '@/game/interfaces/log-entry';
 import { SavedGameMetadata } from '@/game/interfaces/saved-game-metadata';
 import {
-  COPPER_VALUE,
   CURSE_VP,
   DUCHY_VP,
   ESTATE_VP,
-  GOLD_VALUE,
   HAND_STARTING_COPPERS,
   HAND_STARTING_ESTATES,
   PROVINCE_VP,
-  SILVER_VALUE,
   COLONY_VP,
-  PLATINUM_VALUE,
   NO_PLAYER,
   EmptyGameSupply,
   EmptyMatDetails,
@@ -33,10 +29,13 @@ import { IPlayer } from '@/game/interfaces/player';
 import { PlayerField, PlayerFieldMap, PlayerSubFields } from '@/game/types';
 import { CurrentStep } from '@/game/enumerations/current-step';
 import { calculateInitialSunTokens } from '@/game/interfaces/set-mats/prophecy';
-import { IMatDetails } from '@/game/interfaces/mat-details';
 import { IPlayerGameTurnDetails } from '@/game/interfaces/player-game-turn-details';
-import { IVictoryDetails } from '@/game/interfaces/victory-details';
-import { IGameOptions } from './interfaces/game-options';
+import { IGameOptions } from '@/game/interfaces/game-options';
+import { InvalidFieldError } from '@/game/errors/invalid-field';
+import { NotEnoughSupplyError } from '@/game/errors/not-enough-supply';
+import { EmptyLogError } from '@/game/errors/empty-log';
+import { InvalidLogStartGameError } from '@/game/errors/invalid-log-start-game';
+import { InvalidLogSaveGameError } from '@/game/errors/invalid-log-save-game';
 
 export const StepTransitions: Record<CurrentStep, CurrentStep> = {
   [CurrentStep.AddPlayerNames]: CurrentStep.SelectFirstPlayer,
@@ -134,7 +133,7 @@ export function victoryFieldToGameLogAction<T extends keyof PlayerFieldMap>(
             ? GameLogActionWithCount.ADD_COINS
             : GameLogActionWithCount.REMOVE_COINS;
         default:
-          throw new Error(`Invalid turn subfield: ${subfield as string}`);
+          throw new InvalidFieldError(field as string, subfield as string);
       }
     case 'mats':
       switch (subfield) {
@@ -155,7 +154,7 @@ export function victoryFieldToGameLogAction<T extends keyof PlayerFieldMap>(
             ? GameLogActionWithCount.ADD_FAVORS
             : GameLogActionWithCount.REMOVE_FAVORS;
         default:
-          throw new Error(`Invalid mats subfield: ${subfield as string}`);
+          throw new InvalidFieldError(field as string, subfield as string);
       }
     case 'victory':
       switch (subfield) {
@@ -188,7 +187,7 @@ export function victoryFieldToGameLogAction<T extends keyof PlayerFieldMap>(
             ? GameLogActionWithCount.ADD_OTHER_VP
             : GameLogActionWithCount.REMOVE_OTHER_VP;
         default:
-          throw new Error(`Invalid victory subfield: ${subfield as string}`);
+          throw new InvalidFieldError(field as string, subfield as string);
       }
     case 'newTurn':
       switch (subfield) {
@@ -205,10 +204,10 @@ export function victoryFieldToGameLogAction<T extends keyof PlayerFieldMap>(
             ? GameLogActionWithCount.ADD_NEXT_TURN_COINS
             : GameLogActionWithCount.REMOVE_NEXT_TURN_COINS;
         default:
-          throw new Error(`Invalid newTurn subfield: ${subfield as string}`);
+          throw new InvalidFieldError(field as string, subfield as string);
       }
     default:
-      throw new Error(`Invalid field: ${field as string}`);
+      throw new InvalidFieldError(field as string, subfield as string);
   }
 }
 
@@ -238,13 +237,13 @@ export function logEntryToString(entry: ILogEntry): string {
  */
 export function getStartDateFromLog(logEntries: ILogEntry[]): Date {
   if (logEntries.length === 0) {
-    throw new Error('Log entries are empty.');
+    throw new EmptyLogError();
   }
 
   const startGameEntry = logEntries[0];
 
   if (startGameEntry.action !== GameLogActionWithCount.START_GAME) {
-    throw new Error('The first log entry is not a START_GAME event.');
+    throw new InvalidLogStartGameError();
   }
 
   return new Date(startGameEntry.timestamp);
@@ -515,11 +514,11 @@ export function loadGameAddLog(gameState: IGame): IGame {
    * we're going to use that id and create a linked entry for new log entry.
    */
   if (gameState.log.length === 0) {
-    throw new Error('No log entries found.');
+    throw new EmptyLogError();
   }
   const lastLog = gameState.log[gameState.log.length - 1];
   if (lastLog.action !== GameLogActionWithCount.SAVE_GAME) {
-    throw new Error('Last log entry is not a SAVE_GAME event.');
+    throw new InvalidLogSaveGameError();
   }
   addLogEntry(gameState, NO_PLAYER, GameLogActionWithCount.LOAD_GAME, undefined, false, lastLog.id);
   return gameState;
@@ -600,10 +599,23 @@ export function updatePlayerField<T extends keyof PlayerFieldMap>(
       0
     );
   } else {
-    throw new Error(`Invalid field: ${field}`);
+    throw new InvalidFieldError(field as string);
   }
 
   updatedGame.players[playerIndex] = player;
+
+  // update the supply if the field is a victory field
+  if (
+    field === 'victory' &&
+    ['estates', 'duchies', 'provinces', 'colonies', 'curses'].includes(subfield)
+  ) {
+    (updatedGame.supply[subfield as keyof IGameSupply] as number) -= increment;
+
+    const supplyCount = updatedGame.supply[subfield as keyof IGameSupply] as number;
+    if (increment > 0 && supplyCount < increment) {
+      throw new NotEnoughSupplyError(subfield as string);
+    }
+  }
   return updatedGame;
 }
 
@@ -737,8 +749,12 @@ export function applyLogAction(game: IGame, logEntry: ILogEntry): IGame {
       (updatedGame.currentPlayerIndex + 1 + updatedGame.players.length) %
       updatedGame.players.length;
     updatedGame.currentTurn++;
-    // Reset the current player's turn details
-    updatedGame.players[updatedGame.currentPlayerIndex].turn = { ...DefaultTurnDetails };
+    // Reset players turn details
+    updatedGame.players.map((player) => {
+      player.turn = {
+        ...player.newTurn,
+      };
+    });
   } else if (logEntry.playerIndex !== NO_PLAYER) {
     const { field, subfield } = getFieldAndSubfieldFromAction(logEntry.action);
     if (field && subfield && logEntry.count) {

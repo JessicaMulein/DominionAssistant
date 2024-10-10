@@ -31,6 +31,7 @@ import { CurrentStep } from '@/game/enumerations/current-step';
 import { GameLogActionWithCount } from '@/game/enumerations/game-log-action-with-count';
 import { ILogEntry } from '@/game/interfaces/log-entry';
 import { NO_PLAYER } from '@/game/constants';
+import { FailedAddLogEntryError } from '@/game/errors/failed-add-log';
 
 const LoadSaveGame: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
@@ -56,7 +57,7 @@ const LoadSaveGame: React.FC = () => {
       return prevGame;
     });
     if (!newLog) {
-      throw new Error('Failed to add log entry');
+      throw new FailedAddLogEntryError();
     }
     return newLog;
   };
