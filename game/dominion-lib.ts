@@ -229,10 +229,12 @@ export function logEntryToString(entry: ILogEntry): string {
     actionString = actionString.replace('{COUNT}', entry.count.toString());
   } else {
     // Remove {COUNT} if no count is provided
-    actionString = actionString.replace('{COUNT}', '');
+    actionString = actionString.replace(' {COUNT}', '');
   }
 
-  return `${playerName}${actionString}`;
+  const correctionString = entry.correction ? ' (Correction)' : '';
+
+  return `${playerName}${actionString}${correctionString}`;
 }
 
 /**
