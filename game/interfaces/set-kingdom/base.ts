@@ -20,9 +20,9 @@ export function computeStartingSupply(numPlayers: number, curses: boolean): IBas
   }
   return {
     estates: numPlayers <= 2 ? 8 : 12,
-    duchies: 12,
-    provinces: numPlayers <= 4 ? 12 : numPlayers === 5 ? 15 : 18,
-    coppers: 60,
+    duchies: numPlayers <= 2 ? 8 : 12,
+    provinces: numPlayers <= 2 ? 8 : numPlayers <= 4 ? 12 : 15,
+    coppers: 60 - 7 * numPlayers,
     silvers: 40,
     golds: 30,
     curses: curses ? 10 * (numPlayers - 1) : NOT_PRESENT,

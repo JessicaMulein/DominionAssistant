@@ -563,55 +563,16 @@ export function canUndoAction(game: IGame, logIndex: number): boolean {
   let tempGame = JSON.parse(JSON.stringify(game)) as IGame;
 
   // Remove the action and its linked actions
-  const actionsToRemove = new Set([logIndex]);
-  let currentIndex = logIndex;
-  while (tempGame.log[currentIndex].linkedAction) {
-    const linkedIndex = tempGame.log.findIndex(
-      (entry) => entry.id === tempGame.log[currentIndex].linkedAction
-    );
-    if (linkedIndex !== -1) {
-      actionsToRemove.add(linkedIndex);
-      currentIndex = linkedIndex;
-    } else {
-      break;
-    }
-  }
-
-  // Remove actions in reverse order
-  const sortedIndicesToRemove = Array.from(actionsToRemove).sort((a, b) => b - a);
-  for (const index of sortedIndicesToRemove) {
-    tempGame.log.splice(index, 1);
-  }
+  tempGame = removeTargetAndLinkedActions(tempGame, logIndex);
 
   // Try to reconstruct the game state
   try {
-    reconstructGameState(tempGame, tempGame.log.length - 1);
+    reconstructGameState(tempGame);
     return true;
   } catch (error) {
-    // If an error is thrown, it means we encountered negative counters
+    // If an error is thrown, it means we encountered negative counters or other issues
     return false;
   }
-}
-
-/**
- * We can only undo "next turn" actions if it is the most recent action.
- * Therefore we can clean out the playerDetails for past turns to save space.
- * Do not clear the next turn log playerDetails for the most recent action if it is a NEXT_TURN.
- * @param log
- */
-export function cleanLogTurns(log: ILogEntry[]): ILogEntry[] {
-  // remove all but the last log's player details for past turns
-  const newLog = [...log];
-  // remove the player details for past turns
-  newLog.forEach((log, index) => {
-    if (log.action === GameLogActionWithCount.NEXT_TURN && index < newLog.length - 1) {
-      log.playerTurnDetails = undefined;
-      // remove the playerTurnDetails field for the log entry
-      delete log.playerTurnDetails;
-    }
-  });
-
-  return newLog;
 }
 
 /**
@@ -646,22 +607,11 @@ export function updatePlayerField<T extends keyof PlayerFieldMap>(
   return updatedGame;
 }
 
-/**
- * Undoes a specific action in the game log.
- * @param game - The current game state
- * @param logIndex - The index of the action to undo in the game log
- * @returns The updated game state after undoing the action
- */
-export function undoAction(game: IGame, logIndex: number): { game: IGame; success: boolean } {
-  if (!canUndoAction(game, logIndex)) {
-    return { game, success: false };
-  }
-
-  let updatedGame = JSON.parse(JSON.stringify(game)) as IGame;
-
-  // Remove the action and its linked actions
+export function removeTargetAndLinkedActions(game: IGame, logIndex: number): IGame {
+  const updatedGame = { ...game };
   const actionsToRemove = new Set([logIndex]);
   let currentIndex = logIndex;
+
   while (updatedGame.log[currentIndex].linkedAction) {
     const linkedIndex = updatedGame.log.findIndex(
       (entry) => entry.id === updatedGame.log[currentIndex].linkedAction
@@ -673,26 +623,104 @@ export function undoAction(game: IGame, logIndex: number): { game: IGame; succes
       break;
     }
   }
-  console.log('actionsToRemove', actionsToRemove);
 
-  // Remove actions in reverse order
   const sortedIndicesToRemove = Array.from(actionsToRemove).sort((a, b) => b - a);
   for (const index of sortedIndicesToRemove) {
     updatedGame.log.splice(index, 1);
   }
-  console.log('sortedIndicesToRemove', sortedIndicesToRemove);
-  console.log('updatedGame.log', updatedGame.log);
 
-  // Replay the log
-  try {
-    updatedGame = reconstructGameState(updatedGame, updatedGame.log.length - 1);
-  } catch (error) {
-    console.error('Error undoing action:', error);
+  return updatedGame;
+}
+
+export function findLastNextTurnIndex(log: ILogEntry[]): number {
+  return log.findLastIndex((entry) => entry.action === GameLogActionWithCount.NEXT_TURN);
+}
+
+export function findStartGameIndex(log: ILogEntry[]): number {
+  return log.findIndex((entry) => entry.action === GameLogActionWithCount.START_GAME);
+}
+
+/**
+ * Undoes a specific action in the game log.
+ * @param game - The current game state
+ * @param logIndex - The index of the action to undo in the game log
+ * @returns The updated game state after undoing the action
+ */
+export function undoAction(game: IGame, logIndex: number): { game: IGame; success: boolean } {
+  if (!canUndoAction(game, logIndex)) {
     return { game, success: false };
   }
 
-  console.log('After reconstruction', updatedGame);
-  return { game: updatedGame, success: true };
+  try {
+    const gameWithRemovedActions = removeTargetAndLinkedActions(game, logIndex);
+    const reconstructedGame = reconstructGameState(gameWithRemovedActions);
+
+    return { game: reconstructedGame, success: true };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'Negative counters encountered during reconstruction'
+    ) {
+      console.error('Cannot undo action: it would result in negative counters');
+    } else {
+      console.error('Error undoing action:', error);
+    }
+    return { game, success: false };
+  }
+}
+
+/**
+ * Reconstructs the game state up to a specific log entry.
+ * @param game - The current game state
+ * @param targetLogIndex - The index of the log entry to reconstruct up to
+ * @returns The reconstructed game state
+ */
+export function reconstructGameState(game: IGame): IGame {
+  let reconstructedGame = NewGameState({
+    ...EmptyGameState,
+    players: game.players.map((player) => ({
+      ...player,
+      turn: DefaultTurnDetails,
+      newTurn: DefaultTurnDetails,
+    })),
+    options: { ...game.options },
+    firstPlayerIndex: game.firstPlayerIndex,
+    currentPlayerIndex: game.firstPlayerIndex,
+    selectedPlayerIndex: game.firstPlayerIndex,
+  });
+
+  const lastNextTurnIndex = findLastNextTurnIndex(game.log);
+  const startGameIndex = findStartGameIndex(game.log);
+
+  const replayUpToIndex = lastNextTurnIndex === -1 ? startGameIndex : lastNextTurnIndex;
+
+  for (let i = 0; i <= replayUpToIndex; i++) {
+    reconstructedGame = applyLogAction(reconstructedGame, game.log[i]);
+    if (hasNegativeCounters(reconstructedGame)) {
+      throw new Error('Negative counters encountered during reconstruction');
+    }
+  }
+
+  for (let i = replayUpToIndex + 1; i < game.log.length; i++) {
+    reconstructedGame = applyLogAction(reconstructedGame, game.log[i]);
+    if (hasNegativeCounters(reconstructedGame)) {
+      throw new Error('Negative counters encountered during reconstruction');
+    }
+  }
+
+  if (lastNextTurnIndex === -1) {
+    reconstructedGame.currentPlayerIndex = reconstructedGame.firstPlayerIndex;
+    reconstructedGame.selectedPlayerIndex = reconstructedGame.firstPlayerIndex;
+    reconstructedGame.currentTurn = 1;
+  } else {
+    reconstructedGame.currentPlayerIndex =
+      (reconstructedGame.currentPlayerIndex + 1) % reconstructedGame.players.length;
+    reconstructedGame.selectedPlayerIndex = reconstructedGame.currentPlayerIndex;
+    reconstructedGame.currentTurn =
+      Math.floor(lastNextTurnIndex / reconstructedGame.players.length) + 1;
+  }
+
+  return reconstructedGame;
 }
 
 /**
@@ -853,39 +881,4 @@ export function getActionIncrementMultiplier(action: GameLogActionWithCount): nu
   }
 
   return action.startsWith('Add') ? 1 : -1;
-}
-
-/**
- * Reconstructs the game state up to a specific log entry.
- * @param game - The current game state
- * @param targetLogIndex - The index of the log entry to reconstruct up to
- * @returns The reconstructed game state
- */
-export function reconstructGameState(game: IGame, targetLogIndex: number): IGame {
-  let reconstructedGame = NewGameState({
-    ...EmptyGameState,
-    players: game.players.map((player) => ({
-      ...player,
-      turn: DefaultTurnDetails,
-      newTurn: DefaultTurnDetails,
-    })),
-    options: { ...game.options },
-    firstPlayerIndex: game.firstPlayerIndex,
-    currentPlayerIndex: game.firstPlayerIndex,
-    selectedPlayerIndex: game.firstPlayerIndex,
-  });
-
-  // Replay log entries up to the target index
-  for (let i = 0; i <= targetLogIndex && i < game.log.length; i++) {
-    const logEntry = game.log[i];
-    applyLogAction(reconstructedGame, logEntry);
-
-    // Check for negative counters after each action
-    if (hasNegativeCounters(reconstructedGame)) {
-      throw new Error(`Negative counters detected after applying action: ${game.log[i].action}`);
-    }
-  }
-
-  // The log is not updated here, so reconstructedGame.log remains incomplete
-  return reconstructedGame;
 }

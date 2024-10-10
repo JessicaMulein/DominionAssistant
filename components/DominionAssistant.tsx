@@ -12,7 +12,6 @@ import { NO_PLAYER } from '@/game/constants';
 import {
   addLogEntry,
   canUndoAction,
-  cleanLogTurns,
   EmptyGameState,
   StepTransitions,
   undoAction,
@@ -121,15 +120,12 @@ const DominionAssistant: React.FC<DominionAssistantProps> = ({ route, navigation
         return player;
       });
 
-      const cleanedLog = cleanLogTurns(prevGame.log);
-
       return {
         ...prevGame,
         currentPlayerIndex: nextPlayerIndex,
         selectedPlayerIndex: nextPlayerIndex,
         currentTurn: (prevGame.currentTurn || 0) + 1,
         players: updatedPlayers,
-        log: cleanedLog,
       };
     });
   };
